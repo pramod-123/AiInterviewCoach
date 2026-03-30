@@ -7,6 +7,8 @@ const btnShare = document.getElementById("btnShare");
 const btnExportPrint = document.getElementById("btnExportPrint");
 const listStatus = document.getElementById("listStatus");
 const sessionList = document.getElementById("sessionList");
+const sessSidebar = document.getElementById("sessSidebar");
+const btnSidebarToggle = document.getElementById("btnSidebarToggle");
 const sessionCountBadge = document.getElementById("sessionCountBadge");
 const detailPanel = document.getElementById("detailPanel");
 const detailEmpty = document.getElementById("detailEmpty");
@@ -47,13 +49,38 @@ function apiBase() {
   return (apiBaseInput?.value || "").trim().replace(/\/$/, "") || DEFAULT_API;
 }
 
+/**
+ * @param {boolean} collapsed
+ */
+function applySidebarCollapsed(collapsed) {
+  if (!sessSidebar) {
+    return;
+  }
+  sessSidebar.classList.toggle("is-collapsed", collapsed);
+  if (btnSidebarToggle) {
+    btnSidebarToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    btnSidebarToggle.title = collapsed ? "Expand session list" : "Collapse session list";
+    const icon = btnSidebarToggle.querySelector(".material-icons-round");
+    if (icon) {
+      icon.textContent = collapsed ? "chevron_right" : "chevron_left";
+    }
+  }
+  if (sessionList) {
+    sessionList.setAttribute("aria-hidden", collapsed ? "true" : "false");
+  }
+}
+
 async function loadSettings() {
-  const { apiBase: stored } = await chrome.storage.local.get(["apiBase"]);
+  const { apiBase: stored, sessionsSidebarCollapsed } = await chrome.storage.local.get([
+    "apiBase",
+    "sessionsSidebarCollapsed",
+  ]);
   if (apiBaseInput && typeof stored === "string" && stored.trim()) {
     apiBaseInput.value = stored.trim().replace(/\/$/, "");
   } else if (apiBaseInput) {
     apiBaseInput.value = DEFAULT_API;
   }
+  applySidebarCollapsed(sessionsSidebarCollapsed === true);
 }
 
 async function saveApiBase() {
@@ -778,6 +805,15 @@ function scrollToSel(sel) {
   const el = document.querySelector(sel);
   el?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
+btnSidebarToggle?.addEventListener("click", () => {
+  if (!sessSidebar) {
+    return;
+  }
+  const collapsed = !sessSidebar.classList.contains("is-collapsed");
+  applySidebarCollapsed(collapsed);
+  void chrome.storage.local.set({ sessionsSidebarCollapsed: collapsed });
+});
 
 btnLoad?.addEventListener("click", () => {
   void fetchSessions();

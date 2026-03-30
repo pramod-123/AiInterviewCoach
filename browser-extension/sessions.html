@@ -40,10 +40,22 @@
     <p id="listStatus"></p>
 
     <div class="sess-shell">
-      <aside class="sess-sidebar" aria-label="Recent sessions">
+      <aside class="sess-sidebar" id="sessSidebar" aria-label="Recent sessions">
         <div class="sess-sidebar-head">
-          <h3>Recent sessions</h3>
-          <span id="sessionCountBadge">—</span>
+          <h3 class="sess-sidebar-title">Recent sessions</h3>
+          <div class="sess-sidebar-head-actions">
+            <span id="sessionCountBadge">—</span>
+            <button
+              type="button"
+              class="sess-sidebar-toggle"
+              id="btnSidebarToggle"
+              aria-expanded="true"
+              aria-controls="sessionList"
+              title="Collapse session list"
+            >
+              <span class="material-icons-round" aria-hidden="true">chevron_left</span>
+            </button>
+          </div>
         </div>
         <div class="sess-sidebar-list custom-scrollbar" id="sessionList"></div>
       </aside>

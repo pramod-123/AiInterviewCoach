@@ -19,7 +19,7 @@
   font-family: "Material Symbols Outlined", sans-serif;
   font-weight: normal;
   font-style: normal;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
@@ -41,17 +41,30 @@
   box-sizing: border-box;
 }
 
+/* Rounded popup shell — set on both html and body so Chrome clips content reliably */
+html.dark {
+  margin: 0;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--background);
+}
+
 html.dark,
 html.dark body {
-  background: var(--background);
   color: var(--on-surface);
+}
+
+html.dark body {
+  background: var(--background);
 }
 
 body {
   font-family: Inter, system-ui, sans-serif;
-  width: 360px;
+  width: 288px;
   margin: 0;
-  min-height: 420px;
+  min-height: 0;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -72,18 +85,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  height: 52px;
+  padding: 0 10px;
+  height: 42px;
   border-bottom: 1px solid var(--outline-variant);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 1rem;
+  gap: 6px;
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   color: var(--primary);
 }
 
@@ -97,8 +110,8 @@ body {
   color: var(--on-surface-variant);
   background: transparent;
   border: none;
-  padding: 8px;
-  border-radius: 8px;
+  padding: 5px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -117,10 +130,10 @@ body {
 /* Main */
 main.popup-main {
   flex: 1;
-  padding: 18px 20px 14px;
+  padding: 10px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   overflow-y: auto;
   min-height: 0;
 }
@@ -129,12 +142,12 @@ main.popup-main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--primary);
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.75);
@@ -156,7 +169,7 @@ main.popup-main {
 
 .hero-title {
   font-family: Manrope, Inter, system-ui, sans-serif;
-  font-size: 1.35rem;
+  font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   text-align: center;
@@ -166,9 +179,9 @@ main.popup-main {
 }
 
 .hero-sub {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: var(--on-surface-variant);
   text-align: center;
   margin: 0;
@@ -179,9 +192,9 @@ main.popup-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 14px;
-  border-radius: 10px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
   background: var(--surface-container-high);
   cursor: pointer;
   border: 1px solid transparent;
@@ -213,58 +226,58 @@ main.popup-main {
 .mic-bento-inner {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
 .mic-icon-wrap {
   flex-shrink: 0;
-  padding: 8px;
-  border-radius: 8px;
+  padding: 5px;
+  border-radius: 6px;
   background: var(--surface-container-highest);
   color: var(--primary);
 }
 
 .mic-copy h3 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--on-surface);
 }
 
 .mic-copy p {
-  margin: 3px 0 0;
-  font-size: 0.58rem;
+  margin: 2px 0 0;
+  font-size: 0.52rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--on-surface-variant);
 }
 
 .switch {
   flex-shrink: 0;
-  width: 40px;
-  height: 22px;
+  width: 34px;
+  height: 18px;
   border-radius: 999px;
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.35);
   display: flex;
   align-items: center;
-  padding: 0 4px;
+  padding: 0 3px;
   pointer-events: none;
 }
 
 .switch-knob {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--primary);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.35);
   transform: translateX(0);
   transition: transform 0.2s ease;
 }
 
 .mic-bento:has(#chkPopupMic:checked) .switch-knob {
-  transform: translateX(18px);
+  transform: translateX(14px);
 }
 
 .mic-bento:not(:has(#chkPopupMic:checked)) .switch {
@@ -279,29 +292,29 @@ main.popup-main {
 
 /* Collapsible panels */
 .panel-block {
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface-container-high);
-  padding: 12px 14px;
+  padding: 8px 10px;
   border: 1px solid var(--outline-variant);
 }
 
 .panel-block label.field-label {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--on-surface-variant);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .panel-block input[type="url"] {
   width: 100%;
-  padding: 10px 11px;
-  border-radius: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
   border: 1px solid var(--outline-variant);
   background: var(--surface);
   color: var(--on-surface);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
 }
 
 .panel-block input[type="url"]:focus {
@@ -312,8 +325,8 @@ main.popup-main {
 
 .help-text {
   margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.45;
+  font-size: 0.68rem;
+  line-height: 1.4;
   color: var(--on-surface-variant);
 }
 
@@ -321,25 +334,25 @@ main.popup-main {
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 .btn-primary {
   width: 100%;
   border: none;
-  border-radius: 14px;
-  padding: 16px 16px;
+  border-radius: 10px;
+  padding: 10px 12px;
   font-family: Manrope, Inter, system-ui, sans-serif;
   font-weight: 800;
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
   background: var(--primary);
   color: var(--on-primary);
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
@@ -356,18 +369,18 @@ main.popup-main {
 
 .btn-secondary {
   width: 100%;
-  border-radius: 14px;
-  padding: 16px 16px;
+  border-radius: 10px;
+  padding: 10px 12px;
   font-family: Manrope, Inter, system-ui, sans-serif;
   font-weight: 800;
-  font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
   background: var(--surface-container-high);
   color: var(--on-surface);
   border: 1px solid rgba(71, 72, 72, 0.6);
@@ -383,11 +396,11 @@ main.popup-main {
 }
 
 #status {
-  font-size: 0.72rem;
-  line-height: 1.4;
+  font-size: 0.65rem;
+  line-height: 1.35;
   color: var(--on-surface-variant);
   margin: 0;
-  min-height: 2.6em;
+  min-height: 2.2em;
   text-align: center;
 }
 
