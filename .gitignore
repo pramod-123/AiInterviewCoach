@@ -18,8 +18,6 @@ media/interview.mov
 
 # Full-size screen capture; repo ships compressed demo/interview-analysis.mp4 instead
 demo/interview-analysis.mov
-# Optional local GIF export (README uses MP4 + raw.githubusercontent.com)
-demo/interview-analysis.gif
 
 # Editor / OS
 .idea/

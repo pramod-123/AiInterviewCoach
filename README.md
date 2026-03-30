@@ -11,7 +11,7 @@ The **`browser-extension/`** Chrome extension starts sessions from **leetcode.co
 | `server/` | Node.js + Fastify app, Prisma (SQLite), video pipeline, live-session merge/remux, prompts |
 | `server/tst/` | Vitest unit tests |
 | `browser-extension/` | MV3 extension: popup, side panel recorder, LeetCode content script, local **Sessions** UI |
-| `demo/` | README screenshots + muted walkthrough video (repository root); not used by the server |
+| `demo/` | README screenshots, animated GIF preview, and muted MP4 walkthrough; not used by the server |
 | `server/media/` | Optional local files for pipeline/API tests (ignored by git except `.gitkeep`) |
 | `server/DESIGN.md` | **Detailed** server design (architecture, pipeline, Prisma, FFmpeg deep dive). |
 
@@ -57,9 +57,11 @@ Toolbar **popup** (API base URL, mic hint, **Start interview** / **Sessions**):
 
 ![Chrome extension side panel recorder](demo/extension-side-panel.png)
 
-**Screen recording** — walkthrough of the analysis / sessions experience (**muted** H.264). The file in-repo is [`demo/interview-analysis.mp4`](demo/interview-analysis.mp4).
+**Screen recording** — walkthrough of the analysis / sessions experience (muted). **Animated preview** (GIF; larger file, works everywhere on GitHub):
 
-GitHub’s README does not reliably load `<video>` with a **relative** `src`, so the player below points at the file on the **`main`** branch via `raw.githubusercontent.com` (forks: change `OWNER/REPO` in the URL, or open the local MP4 after cloning).
+![Sessions / analysis walkthrough (animated)](demo/interview-analysis.gif)
+
+**Higher quality (H.264 MP4)** — GitHub’s README does not reliably load `<video>` with a **relative** `src`, so the player uses `raw.githubusercontent.com` on **`main`** (forks: change `OWNER/REPO`, or open [`demo/interview-analysis.mp4`](demo/interview-analysis.mp4) locally).
 
 <video controls muted playsinline preload="metadata" width="720">
   <source
@@ -68,7 +70,7 @@ GitHub’s README does not reliably load `<video>` with a **relative** `src`, so
   />
 </video>
 
-**Direct link:** [open MP4 on `main`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-analysis.mp4)
+**Direct links:** [MP4 on `main`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-analysis.mp4) · [`demo/interview-analysis.mp4`](demo/interview-analysis.mp4) in the tree
 
 ## HTTP API (summary)
 
