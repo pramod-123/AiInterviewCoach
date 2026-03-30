@@ -49,6 +49,20 @@ curl -s -X POST "http://127.0.0.1:3001/api/live-sessions/$SID/end"
 # Poll GET /api/live-sessions/$SID until postProcessJob.status is COMPLETED
 ```
 
+### Browser extension testing
+
+The Chrome extension (`browser-extension/`) is plain HTML/CSS/JS with no build step. To test:
+
+1. Start the dev server (`npm run dev` in `server/`).
+2. In Chrome: Extensions → Developer mode → Load unpacked → select `browser-extension/`.
+3. Navigate to a `https://leetcode.com/problems/...` page.
+4. Click the extension icon → popup shows "Ready". Toggle mic off if no mic is available.
+5. Click "Start Session" → side panel opens with recording controls.
+6. Click "Start recording LeetCode tab" → tab capture begins, video chunks and code snapshots upload automatically.
+7. Click "End session on server" → Sessions page opens with video, transcript, evaluation, and dimensions.
+
+The extension only activates on `leetcode.com` tabs (enforced by `background.js`). API base URL defaults to `http://127.0.0.1:3001`.
+
 ### Gotchas
 
 - The `punycode` deprecation warning on server startup is a known Node 22 issue and is harmless.
