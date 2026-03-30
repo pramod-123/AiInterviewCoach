@@ -57,9 +57,18 @@ Toolbar **popup** (API base URL, mic hint, **Start interview** / **Sessions**):
 
 ![Chrome extension side panel recorder](demo/extension-side-panel.png)
 
-**Screen recording** — walkthrough of the analysis / sessions experience (**muted** H.264, scaled for size). If the player does not show in your viewer, open the file directly: [`interview-analysis.mp4`](demo/interview-analysis.mp4).
+**Screen recording** — walkthrough of the analysis / sessions experience (**muted** H.264). The file in-repo is [`demo/interview-analysis.mp4`](demo/interview-analysis.mp4).
 
-<video src="demo/interview-analysis.mp4" controls muted playsinline preload="metadata"></video>
+GitHub’s README does not reliably load `<video>` with a **relative** `src`, so the player below points at the file on the **`main`** branch via `raw.githubusercontent.com` (forks: change `OWNER/REPO` in the URL, or open the local MP4 after cloning).
+
+<video controls muted playsinline preload="metadata" width="720">
+  <source
+    src="https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-analysis.mp4"
+    type="video/mp4"
+  />
+</video>
+
+**Direct link:** [open MP4 on `main`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-analysis.mp4)
 
 ## HTTP API (summary)
 
