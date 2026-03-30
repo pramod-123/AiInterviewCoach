@@ -18,12 +18,6 @@ const btnSideHelp = document.getElementById("btnSideHelp");
 const sideSettingsPanel = document.getElementById("sideSettingsPanel");
 const sideHelpPanel = document.getElementById("sideHelpPanel");
 
-/** Poll interval for live session job + interview result (ms). */
-const POST_PROCESS_POLL_MS = 2500;
-
-/** @type {AbortController | null} */
-let postProcessPollAbort = null;
-
 const MIC_PERMISSION_HINT =
   "Side panel mic prompts often fail in Chrome. Fix: use the toolbar popup → Start interview (Allow mic there), or chrome://settings/content/microphone → allow this extension.";
 
@@ -179,15 +173,6 @@ function log(line) {
   }
 }
 
-function setProcessStatus(text, isError) {
-  if (!processStatusEl) {
-    return;
-  }
-  processStatusEl.hidden = false;
-  processStatusEl.textContent = text;
-  processStatusEl.className = isError ? "err" : "";
-}
-
 function hideProcessStatus() {
   if (!processStatusEl) {
     return;
@@ -205,146 +190,27 @@ function clearResultSection() {
   resultSectionEl.replaceChildren();
 }
 
-function stopPostProcessPolling() {
-  if (postProcessPollAbort) {
-    postProcessPollAbort.abort();
-    postProcessPollAbort = null;
-  }
-}
-
 /**
- * @param {number} ms
- * @param {AbortSignal} signal
+ * Dismiss the recorder side panel after opening the sessions tab.
+ * Uses `chrome.sidePanel.close` when available (Chrome 141+); otherwise tries `window.close()`.
  */
-function sleepAbortable(ms, signal) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    const onAbort = () => {
-      clearTimeout(t);
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-/**
- * @param {string} url
- */
-async function fetchJson(url) {
-  const res = await fetch(url);
-  const data = await res.json().catch(() => ({}));
-  return { res, data };
-}
-
-/**
- * @param {AbortSignal} signal
- * @returns {Promise<string | null>}
- */
-async function pollForPostProcessJobId(signal) {
-  const deadline = Date.now() + 12 * 60 * 1000;
-  while (Date.now() < deadline) {
-    const { res, data } = await fetchJson(`${apiBase}/api/live-sessions/${sessionId}`);
-    if (!res.ok) {
-      throw new Error(data.error || `GET session HTTP ${res.status}`);
-    }
-    const job = data.postProcessJob;
-    const id = job && typeof job.id === "string" ? job.id : "";
-    if (id) {
-      return id;
-    }
-    await sleepAbortable(POST_PROCESS_POLL_MS, signal);
-  }
-  return null;
-}
-
-/**
- * @param {string} jobId
- * @param {AbortSignal} signal
- */
-async function pollInterviewUntilComplete(jobId, signal) {
-  const deadline = Date.now() + 40 * 60 * 1000;
-  while (Date.now() < deadline) {
-    const { res, data } = await fetchJson(`${apiBase}/api/interviews/${jobId}`);
-    if (!res.ok) {
-      throw new Error(data.error || `GET interview HTTP ${res.status}`);
-    }
-    if (res.status === 200 && data.result != null) {
-      return data;
-    }
-    if (data.status === "FAILED") {
-      throw new Error(data.errorMessage || data.message || "Post-processing failed.");
-    }
-    await sleepAbortable(POST_PROCESS_POLL_MS, signal);
-  }
-  return null;
-}
-
-/** @param {{ result?: unknown } & Record<string, unknown>} data */
-function renderInterviewResult(data) {
-  if (!resultSectionEl) {
-    return;
-  }
-  clearResultSection();
-  resultSectionEl.hidden = false;
-  const rv = window.InterviewCopilotResultView;
-  if (rv && typeof rv.renderInterviewGetResponse === "function") {
-    rv.renderInterviewGetResponse(resultSectionEl, data);
-    return;
-  }
-  const pre = document.createElement("pre");
-  pre.className = "raw";
-  pre.textContent = JSON.stringify(data, null, 2);
-  resultSectionEl.appendChild(pre);
-}
-
-function startPostProcessPollingAfterEnd() {
-  if (!sessionId || !apiBase || !processStatusEl) {
-    return;
-  }
-  stopPostProcessPolling();
-  clearResultSection();
-  postProcessPollAbort = new AbortController();
-  const { signal } = postProcessPollAbort;
-
-  void (async () => {
-    try {
-      setProcessStatus("Waiting for post-process job (merge + speech)…", false);
-      const jobId = await pollForPostProcessJobId(signal);
-      if (signal.aborted) {
+async function closeExtensionSidePanel() {
+  try {
+    if (typeof chrome.sidePanel?.close === "function") {
+      const w = await chrome.windows.getCurrent();
+      if (w.id != null) {
+        await chrome.sidePanel.close({ windowId: w.id });
         return;
       }
-      if (!jobId) {
-        setProcessStatus("Timed out waiting for a job to be linked to this session.", true);
-        return;
-      }
-      setProcessStatus(
-        `Processing… (${jobId.slice(0, 8)}…). Speech + evaluation can take several minutes.`,
-        false,
-      );
-      const final = await pollInterviewUntilComplete(jobId, signal);
-      if (signal.aborted) {
-        return;
-      }
-      if (!final) {
-        setProcessStatus("Timed out waiting for results.", true);
-        return;
-      }
-      setProcessStatus("Processing complete.", false);
-      log(`Interview result ready (job ${jobId.slice(0, 8)}…).`);
-      renderInterviewResult(final);
-    } catch (e) {
-      if (e && typeof e === "object" && "name" in e && e.name === "AbortError") {
-        return;
-      }
-      const msg = e instanceof Error ? e.message : String(e);
-      setProcessStatus(msg, true);
-      log(`post-process poll: ${msg}`);
     }
-  })();
+  } catch {
+    /* e.g. global vs tab-specific panel quirks — try window.close */
+  }
+  try {
+    window.close();
+  } catch {
+    /* ignore */
+  }
 }
 
 function tabIdValid() {
@@ -1372,14 +1238,21 @@ async function init() {
       log("Session ended on server.");
       btnEnd.disabled = true;
       await chrome.storage.session.remove(["pendingRecorder"]);
-      startPostProcessPollingAfterEnd();
+      hideProcessStatus();
+      clearResultSection();
+      const endedId = sessionId;
+      const dashUrl = chrome.runtime.getURL(
+        `sessions.html?session=${encodeURIComponent(endedId)}`,
+      );
+      log("Opening sessions dashboard…");
+      await chrome.tabs.create({ url: dashUrl });
+      await closeExtensionSidePanel();
     } catch (e) {
       log(`end session: ${e instanceof Error ? e.message : String(e)}`);
     }
   });
 
   window.addEventListener("beforeunload", () => {
-    stopPostProcessPolling();
     void flushCodeSnapshotIfChanged();
     clearCodeInterval();
     recordingStartedPerfMs = null;

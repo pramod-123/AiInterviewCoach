@@ -655,6 +655,48 @@ async function fetchSessions() {
   }
   setListStatus(`${data.length} session(s).`, false);
   renderSessionList(data);
+  selectSessionFromQueryIfPresent();
+}
+
+/**
+ * If the URL has `?session=<id>`, select that row after the list renders and drop the query param.
+ */
+function selectSessionFromQueryIfPresent() {
+  let want = "";
+  try {
+    want = (new URLSearchParams(window.location.search).get("session") || "").trim();
+  } catch {
+    return;
+  }
+  if (!want || !sessionList) {
+    return;
+  }
+  const escaped =
+    typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(want) : want;
+  const btn = sessionList.querySelector(`button.sess-session-item[data-session-id="${escaped}"]`);
+  if (!(btn instanceof HTMLButtonElement)) {
+    setListStatus(
+      `Session ${truncate(want, 14)}… not in this list — click Load sessions to refresh.`,
+      true,
+    );
+    return;
+  }
+  const id = btn.dataset.sessionId ?? "";
+  const jobId = btn.dataset.jobId ?? "";
+  const rawChunks = btn.dataset.videoChunks ?? "0";
+  const videoChunkCount = Number.parseInt(rawChunks, 10);
+  const preview = btn.dataset.preview ?? "";
+  const updatedAt = btn.dataset.updatedAt ?? "";
+  void selectSession(id, jobId, Number.isFinite(videoChunkCount) ? videoChunkCount : 0, preview, updatedAt);
+
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("session");
+    const qs = u.searchParams.toString();
+    history.replaceState({}, "", u.pathname + (qs ? `?${qs}` : ""));
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
