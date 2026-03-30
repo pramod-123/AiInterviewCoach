@@ -72,6 +72,32 @@ Toolbar **popup** (API base URL, mic hint, **Start interview** / **Sessions**):
 
 **Direct links:** [MP4 on `main`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-analysis.mp4) · [`demo/interview-analysis.mp4`](demo/interview-analysis.mp4) in the tree
 
+### Full interview demo (with voice narration)
+
+A **~7-minute simulated coding interview** solving [LeetCode 56 — Merge Intervals](https://leetcode.com/problems/merge-intervals/). The candidate reads the problem, discusses approach and complexity, writes the solution step-by-step, then traces through examples and edge cases — all with **voice narration** (OpenAI TTS).
+
+Upload this video via `POST /api/interviews` or play it locally to see what the pipeline ingests:
+
+<video controls playsinline preload="metadata" width="720">
+  <source
+    src="https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-demo-merge-intervals.mp4"
+    type="video/mp4"
+  />
+</video>
+
+**Direct links:** [MP4 on `main`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/demo/interview-demo-merge-intervals.mp4) · [`demo/interview-demo-merge-intervals.mp4`](demo/interview-demo-merge-intervals.mp4) in the tree
+
+The narrated interview covers the full candidate flow:
+
+| Phase | Timestamp | What happens |
+|-------|-----------|--------------|
+| **Read & understand** | 0:00 – 1:10 | Reads problem, walks through both examples |
+| **Approach discussion** | 1:10 – 2:00 | Sorting insight, merge strategy, overlap condition |
+| **Complexity analysis** | 2:05 – 2:45 | O(n log n) time, O(n) space reasoning |
+| **Coding** | 2:45 – 4:50 | Edge case → sort → merge loop → return |
+| **Dry-run verification** | 5:00 – 6:00 | Traces Example 1 step-by-step |
+| **Edge cases** | 6:10 – 7:00 | All-overlapping, single interval, wrap-up |
+
 ## HTTP API (summary)
 
 **Classic video jobs**
