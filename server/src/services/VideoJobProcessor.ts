@@ -14,32 +14,12 @@ import type { InterviewEvaluationPayload } from "../types/interviewEvaluation.js
 import { SpeechSegment, SpeechTranscription } from "../types/speechTranscription.js";
 import { FfmpegDedupedFrameExtractor } from "./video/FfmpegDedupedFrameExtractor.js";
 import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscriptionEvaluationOrchestrator.js";
-
-function frameOcrToDbSegments(
-  timesSec: number[],
-  texts: string[],
-  durationSec: number,
-): Array<{ startMs: number; endMs: number; text: string; sequence: number }> {
-  const n = Math.min(timesSec.length, texts.length);
-  const tailEndMs = Math.max(
-    0,
-    Math.round(Math.max(durationSec, n > 0 ? timesSec[n - 1]! + 2 : 0) * 1000),
-  );
-  const out: Array<{ startMs: number; endMs: number; text: string; sequence: number }> = [];
-  for (let i = 0; i < n; i++) {
-    const startMs = Math.max(0, Math.round(timesSec[i]! * 1000));
-    const endMs =
-      i + 1 < n
-        ? Math.max(startMs + 1, Math.round(timesSec[i + 1]! * 1000))
-        : Math.max(startMs + 1, tailEndMs);
-    out.push({ startMs, endMs, text: texts[i] ?? "", sequence: i });
-  }
-  return out;
-}
+import { codeSnapshotsFromTimelineSec } from "./codeSnapshotsFromTimelineSec.js";
 
 /**
  * Runs the full e2e pipeline (ROI, FFmpeg frames, Tesseract, Whisper, rubric) for an uploaded video job
- * and persists {@link TranscriptSegment} rows (`VIDEO_OCR`, `AUDIO_STT`), derived {@link InterviewAudio}, and {@link Result}.
+ * and persists {@link SpeechUtterance} (STT windows), {@link CodeSnapshot} (`VIDEO_OCR`),
+ * derived {@link InterviewAudio}, and {@link Result}.
  * Requires ffmpeg/ffprobe/tesseract on PATH — verified at server startup via {@link assertMandatoryInterviewApiConfig}.
  */
 export class VideoJobProcessor {
@@ -109,11 +89,10 @@ export class VideoJobProcessor {
     const { transcription, evaluation, frameTimesSec, frameOcrTexts } = run;
     const durationSec = transcription.durationSec ?? 0;
 
-    const ocrRows = frameOcrToDbSegments(frameTimesSec, frameOcrTexts, durationSec).map((r) => ({
+    const ocrRows = codeSnapshotsFromTimelineSec(frameTimesSec, frameOcrTexts).map((r) => ({
       jobId,
       source: "VIDEO_OCR" as const,
-      startMs: r.startMs,
-      endMs: r.endMs,
+      offsetMs: r.offsetMs,
       text: r.text,
       sequence: r.sequence,
     }));
@@ -131,14 +110,14 @@ export class VideoJobProcessor {
     );
 
     await this.db.$transaction(async (tx) => {
-      await tx.transcriptSegment.deleteMany({ where: { jobId, source: "VIDEO_OCR" } });
-      await tx.transcriptSegment.deleteMany({ where: { jobId, source: "AUDIO_STT" } });
+      await tx.codeSnapshot.deleteMany({ where: { jobId, source: "VIDEO_OCR" } });
+      await tx.speechUtterance.deleteMany({ where: { jobId } });
 
       if (ocrRows.length > 0) {
-        await tx.transcriptSegment.createMany({ data: ocrRows });
+        await tx.codeSnapshot.createMany({ data: ocrRows });
       }
       if (sttRows.length > 0) {
-        await tx.transcriptSegment.createMany({ data: sttRows });
+        await tx.speechUtterance.createMany({ data: sttRows });
       }
 
       await tx.interviewAudio.upsert({
@@ -177,7 +156,7 @@ export class VideoJobProcessor {
     jobId: string,
     seg: SpeechSegment,
     sequence: number,
-  ): Prisma.TranscriptSegmentCreateManyInput {
+  ): Prisma.SpeechUtteranceCreateManyInput {
     const startMs = Math.max(0, Math.round(seg.startSec * 1000));
     let endMs = Math.max(0, Math.round(seg.endSec * 1000));
     if (endMs <= startMs) {
@@ -185,7 +164,6 @@ export class VideoJobProcessor {
     }
     return {
       jobId,
-      source: "AUDIO_STT",
       startMs,
       endMs,
       text: seg.text,

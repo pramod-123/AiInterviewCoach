@@ -6,7 +6,8 @@ import { pipeline } from "node:stream/promises";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { AppPaths } from "../infrastructure/AppPaths.js";
-import { TranscriptPresenter } from "../presenters/TranscriptPresenter.js";
+import { CodeSnapshotPresenter } from "../presenters/CodeSnapshotPresenter.js";
+import { SpeechUtterancePresenter } from "../presenters/SpeechUtterancePresenter.js";
 import type { VideoJobProcessor } from "../services/VideoJobProcessor.js";
 
 type InterviewIdParams = { Params: { id: string } };
@@ -122,7 +123,8 @@ export class JobRoutesController {
       include: {
         result: true,
         interviewVideo: true,
-        transcriptSegments: { orderBy: TranscriptPresenter.defaultOrderBy },
+        speechUtterances: { orderBy: SpeechUtterancePresenter.defaultOrderBy },
+        codeSnapshots: { orderBy: CodeSnapshotPresenter.defaultOrderBy },
         liveSession: { select: { id: true } },
       },
     });
@@ -131,7 +133,8 @@ export class JobRoutesController {
       return void reply.code(404).send({ error: "Interview not found." });
     }
 
-    const transcripts = TranscriptPresenter.toDtoList(job.transcriptSegments);
+    const speechTranscript = SpeechUtterancePresenter.toDtoList(job.speechUtterances);
+    const codeSnapshots = CodeSnapshotPresenter.toDtoList(job.codeSnapshots);
 
     if (!job.result) {
       const fromLiveSession = job.liveSession != null;
@@ -150,7 +153,9 @@ export class JobRoutesController {
         message,
         errorMessage: job.errorMessage,
         liveSessionId: job.liveSessionId,
-        transcripts,
+        speechTranscript,
+        codeSnapshots,
+        transcripts: speechTranscript,
       });
     }
 
@@ -160,7 +165,9 @@ export class JobRoutesController {
       result: job.result.payload,
       createdAt: job.result.createdAt.toISOString(),
       liveSessionId: job.liveSessionId,
-      transcripts,
+      speechTranscript,
+      codeSnapshots,
+      transcripts: speechTranscript,
     });
   }
 }

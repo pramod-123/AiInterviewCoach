@@ -7,9 +7,9 @@ import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscri
  * Persists STT segments and rubric evaluation for a stored interview audio file.
  * Transcription + evaluation are delegated to {@link SpeechTranscriptionEvaluationOrchestrator}.
  *
- * On success, updates `Job`, `InterviewAudio.durationSeconds`, replaces `TranscriptSegment` rows
- * with `source=AUDIO_STT`, and upserts `Result.payload` (`stt` + `evaluation`). Video jobs populate
- * `VIDEO_OCR` via {@link VideoJobProcessor}.
+ * On success, updates `Job`, `InterviewAudio.durationSeconds`, replaces {@link SpeechUtterance}
+ * rows, and upserts `Result.payload` (`stt` + `evaluation`). Video jobs populate
+ * {@link CodeSnapshot} (`VIDEO_OCR`) via {@link VideoJobProcessor}.
  */
 export class AudioJobProcessor {
   constructor(
@@ -18,7 +18,7 @@ export class AudioJobProcessor {
   ) {}
 
   /**
-   * Loads the job’s audio, runs STT when configured, writes {@link TranscriptSegment} rows
+   * Loads the job’s audio, runs STT when configured, writes {@link SpeechUtterance} rows
    * and a placeholder {@link Result}; updates {@link Job} status.
    */
   async process(jobId: string): Promise<void> {
@@ -85,12 +85,12 @@ export class AudioJobProcessor {
     const payload = this.buildResultPayload(transcription, segments.length, evaluation);
 
     await this.db.$transaction(async (tx) => {
-      await tx.transcriptSegment.deleteMany({
-        where: { jobId, source: "AUDIO_STT" },
+      await tx.speechUtterance.deleteMany({
+        where: { jobId },
       });
 
       if (segmentRows.length > 0) {
-        await tx.transcriptSegment.createMany({ data: segmentRows });
+        await tx.speechUtterance.createMany({ data: segmentRows });
       }
 
       await tx.interviewAudio.update({
@@ -117,7 +117,7 @@ export class AudioJobProcessor {
     jobId: string,
     seg: SpeechSegment,
     sequence: number,
-  ): Prisma.TranscriptSegmentCreateManyInput {
+  ): Prisma.SpeechUtteranceCreateManyInput {
     const startMs = Math.max(0, Math.round(seg.startSec * 1000));
     let endMs = Math.max(0, Math.round(seg.endSec * 1000));
     if (endMs <= startMs) {
@@ -125,7 +125,6 @@ export class AudioJobProcessor {
     }
     return {
       jobId,
-      source: "AUDIO_STT",
       startMs,
       endMs,
       text: seg.text,

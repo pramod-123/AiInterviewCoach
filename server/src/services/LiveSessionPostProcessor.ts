@@ -7,6 +7,7 @@ import { writeMergedLiveSessionWebm } from "../live-session/mergeLiveSessionReco
 import type { AppPaths } from "../infrastructure/AppPaths.js";
 import { writeE2eSpeechAnalysisArtifacts } from "./e2e/E2eSpeechAnalysisArtifacts.js";
 import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscriptionEvaluationOrchestrator.js";
+import { codeSnapshotsFromTimelineSec } from "./codeSnapshotsFromTimelineSec.js";
 import { FfmpegRunner, ffprobeFormatDurationSec } from "../video-pipeline/ffmpegExtract.js";
 import type { InterviewEvaluationPayload } from "../types/interviewEvaluation.js";
 import { SpeechSegment, type SpeechTranscription } from "../types/speechTranscription.js";
@@ -19,7 +20,8 @@ export type LiveSessionPostProcessRunOptions = {
 /**
  * After a live session ends: merge WebM chunks, extract WAV, run STT + rubric using **code snapshots**
  * as the evaluation timeline (no frame OCR). Writes `transcript.srt` and related artifacts under
- * `data/live-sessions/<id>/post-process/`, and persists a linked {@link Job} with `AUDIO_STT` segments.
+ * `data/live-sessions/<id>/post-process/`, and persists a linked {@link Job} with
+ * {@link SpeechUtterance} (STT) and {@link CodeSnapshot} (`EDITOR_SNAPSHOT`) rows.
  */
 export class LiveSessionPostProcessor {
   constructor(
@@ -50,7 +52,7 @@ export class LiveSessionPostProcessor {
     jobId: string,
     seg: SpeechSegment,
     sequence: number,
-  ): Prisma.TranscriptSegmentCreateManyInput {
+  ): Prisma.SpeechUtteranceCreateManyInput {
     const startMs = Math.max(0, Math.round(seg.startSec * 1000));
     let endMs = Math.max(0, Math.round(seg.endSec * 1000));
     if (endMs <= startMs) {
@@ -58,7 +60,6 @@ export class LiveSessionPostProcessor {
     }
     return {
       jobId,
-      source: "AUDIO_STT",
       startMs,
       endMs,
       text: seg.text,
@@ -184,7 +185,7 @@ export class LiveSessionPostProcessor {
     try {
       const out = await this.speechAnalysis.transcribeAndEvaluate(audioWav, jobId, {
         evaluationFrameTimesSec: timesSec,
-        evaluationFrameOcrTexts: codeTexts,
+        evaluationCodeSnapshot: codeTexts,
         problemStatementText: problemForEval,
         carryForwardEditorSnapshots: true,
       });
@@ -200,6 +201,13 @@ export class LiveSessionPostProcessor {
 
     const durationSec = transcription.durationSec ?? (await ffprobeFormatDurationSec(audioWav));
     const sttRows = transcription.segments.map((seg, i) => this.toSttRow(jobId, seg, i));
+    const editorSnapshotRows = codeSnapshotsFromTimelineSec(timesSec, codeTexts).map((r) => ({
+      jobId,
+      source: "EDITOR_SNAPSHOT" as const,
+      offsetMs: r.offsetMs,
+      text: r.text,
+      sequence: r.sequence,
+    }));
 
     const audioStat = await fs.stat(audioWav).catch(() => null);
     const audioSize = audioStat ? Number(audioStat.size) : 0;
@@ -215,9 +223,12 @@ export class LiveSessionPostProcessor {
     );
 
     await this.db.$transaction(async (tx) => {
-      await tx.transcriptSegment.deleteMany({ where: { jobId, source: "AUDIO_STT" } });
+      await tx.speechUtterance.deleteMany({ where: { jobId } });
       if (sttRows.length > 0) {
-        await tx.transcriptSegment.createMany({ data: sttRows });
+        await tx.speechUtterance.createMany({ data: sttRows });
+      }
+      if (editorSnapshotRows.length > 0) {
+        await tx.codeSnapshot.createMany({ data: editorSnapshotRows });
       }
 
       await tx.interviewAudio.upsert({

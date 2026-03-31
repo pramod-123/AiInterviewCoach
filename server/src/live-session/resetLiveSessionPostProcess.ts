@@ -8,7 +8,7 @@ import type { AppPaths } from "../infrastructure/AppPaths.js";
  * {@link LiveSessionPostProcessor.run} can run again from scratch.
  *
  * - Deletes the {@link Job} linked by `liveSessionId` (cascades InterviewVideo, InterviewAudio,
- *   TranscriptSegment, Result).
+ *   SpeechUtterance, CodeSnapshot, Result).
  * - Deletes `post-process/` under the session dir.
  * - Deletes merged `recording.webm` / temp `recording-raw.webm` (rebuilt on next process run).
  *

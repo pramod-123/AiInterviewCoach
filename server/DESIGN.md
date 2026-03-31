@@ -9,8 +9,8 @@ This document is the **low-level** design for the Node/TypeScript server under `
 #### 1. Goals
 
 - **HTTP interviews are video-only** (`POST /api/interviews`): every job runs the **full** pipeline — **vision ROI**, **frame extract + Tesseract OCR**, **demuxed-audio Whisper STT**, and **rubric evaluation**. There is **no** audio-only shortcut.
-- **Live LeetCode sessions** (`/api/live-sessions/…`) feed a **merged tab recording** (+ optional mic) and **code snapshots** into the **same** pipeline after **`POST …/end`**.
-- **Single HTTP poll** (`GET /api/interviews/:id`) for status, transcripts, and final **`result`** JSON (including jobs created from ended live sessions).
+- **Live LeetCode sessions** (`/api/live-sessions/…`): after **`POST …/end`**, **`LiveSessionPostProcessor`** merges **WebM**, extracts **WAV**, runs **STT + rubric** using **extension-delivered code snapshots** on the timeline — **no** vision ROI and **no** Tesseract on the merged video (uploaded-video jobs are the only path that runs frame OCR).
+- **Single HTTP poll** (`GET /api/interviews/:id`) for status, **`speechTranscript`** / **`codeSnapshots`**, and final **`result`** JSON (including jobs created from ended live sessions).
 - **Server startup** fails fast unless **ffmpeg**, **ffprobe**, **tesseract**, **STT**, and **vision ROI** are all available (`assertMandatoryInterviewApiConfig` in `mandatoryInterviewApiEnv.ts`).
 - Share **STT + evaluation** and **`E2eInterviewPipeline`** with **CLI** (`pipelineCli e2e`). The **`AudioJobProcessor`** class remains in the codebase for non-HTTP use only; the public API does not call it.
 
@@ -22,7 +22,7 @@ This document is the **low-level** design for the Node/TypeScript server under `
 |--------|--------|
 | Runtime | Node.js (ESM, TypeScript) |
 | HTTP | Fastify 5, `@fastify/cors`, `@fastify/multipart` |
-| ORM / DB | Prisma 6, **SQLite** (`data/app.db`) |
+| ORM / DB | Prisma 7, **SQLite** (`data/app.db`) |
 | External AI | OpenAI (Whisper STT, Chat Completions for ROI + rubric evaluation) |
 | Local tools | `ffmpeg`, `ffprobe`, `tesseract` — **required on PATH before the API will start** (and for CLI e2e) |
 
@@ -45,7 +45,7 @@ The repo exposes **classic interview job** routes (**submit** + **result**), **l
 ```
 
 - **`POST /api/interviews`**: multipart field **`file`** must be **video** (`video/*`, or `application/octet-stream` with `.mp4`, `.mov`, `.mkv`, `.avi`, `.m4v`, `.webm`). **Audio-only files → `415`**. Jobs process the **entire** uploaded file (no duration query param or env cap).
-- **`GET /api/interviews/:id`**: **`202`** until `Result` exists; **`200`** with `result` + `transcripts`.
+- **`GET /api/interviews/:id`**: **`202`** until `Result` exists; **`200`** with `result` + **`speechTranscript`** (STT windows) + **`codeSnapshots`** (OCR/editor instants) + **`transcripts`** (alias of `speechTranscript`).
 
 Artifacts: **`data/uploads/<id>/pipeline/`**. Same **`E2eInterviewPipeline`** as CLI e2e (LLM ROI is **not** optional for HTTP).
 
@@ -60,12 +60,15 @@ Artifacts: **`data/uploads/<id>/pipeline/`**. Same **`E2eInterviewPipeline`** as
 └─────┬───────────────────────────────────────────────────────────┘
       │
       ├── chunks on disk: data/live-sessions/<sessionId>/video-chunks/
+      ├── code rows: InterviewLiveSession → LiveCodeSnapshot (session DB)
       ├── end → mergeLiveSessionRecording / remux → recording.webm
-      └── LiveSessionPostProcessor → VideoJobProcessor / E2eInterviewPipeline → Job + Result
+      └── LiveSessionPostProcessor: WAV extract → STT + eval (code timeline
+          from snapshots) → Job + SpeechUtterance + CodeSnapshot(EDITOR_SNAPSHOT)
+          + Result  (no ROI, no frame OCR)
 ```
 
 - **While `ACTIVE`**, the extension streams **WebM** time slices and periodic **Monaco** code snapshots; **`PATCH`** stores the **LeetCode problem statement** (scraped in the page).
-- **`POST …/end`** flips status to **`ENDED`**, writes a **playable** merged **WebM** (ffmpeg remux; chunks alone are not standalone files), creates a **`Job`** with **`liveSessionId`**, and runs the **same** ROI + OCR + STT + evaluation path as **`POST /api/interviews`**, using the merged file as **`InterviewVideo`**.
+- **`POST …/end`** flips status to **`ENDED`**, writes a **playable** merged **WebM**, creates a **`Job`** with **`liveSessionId`**, and schedules **`LiveSessionPostProcessor`**: **FFmpeg** audio extract → **`SpeechTranscriptionEvaluationOrchestrator`** with **`evaluationFrameTimesSec`** / **`evaluationCodeSnapshot`** from **`LiveCodeSnapshot`** → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`) + **`Result`**. Merged file is **`InterviewVideo`**; **Tesseract is not used** on this path.
 - Session-facing artifacts and **`interview-feedback.json`** also live under **`data/live-sessions/<id>/`** for the extension UI.
 
 ##### 3.2 CLI / video pipeline path (FFmpeg, ROI, OCR)
@@ -163,7 +166,7 @@ Implementation: **`ffmpegExtract.ts`** (`FfmpegRunner`, `ffprobeFormatDurationSe
 | Tesseract | Yes (mandatory at startup) | Yes (e2e / finish-e2e) |
 | Vision ROI | Yes (mandatory at startup) | e2e only |
 | STT + evaluation | `VideoJobProcessor` + **`LiveSessionPostProcessor`** | Same orchestrator |
-| `VIDEO_OCR` + `AUDIO_STT` in DB | Both from pipeline | Files only |
+| **SQLite speech + code** | **`SpeechUtterance`** (STT windows) + **`CodeSnapshot`** (`VIDEO_OCR` from frames, `EDITOR_SNAPSHOT` from live) | Files only (no DB) |
 | Live sessions | **`LiveSessionRoutesController`** + `data/live-sessions/` | No |
 | SQLite | Yes | No |
 
@@ -174,13 +177,16 @@ Implementation: **`ffmpegExtract.ts`** (`FfmpegRunner`, `ffprobeFormatDurationSe
 - **`Job`** — lifecycle: `PENDING` → `PROCESSING` → `COMPLETED` | `FAILED`; optional `errorMessage`; optional **`liveSessionId`** when spawned from **`LiveSessionPostProcessor`**.
 - **`InterviewLiveSession`** — browser live capture: `ACTIVE` | `ENDED`, optional **`question`** (problem text), timestamps.
 - **`LiveVideoChunk`** — ordered **WebM** slice files per session (`sequence`, `filePath`, mime/size metadata).
-- **`LiveCodeSnapshot`** — editor text + **`offsetSeconds`** on the session timeline for correlation with the merged recording.
-- **`InterviewAudio`** — for **HTTP** jobs, **always** created/updated after the pipeline with path to **`pipeline/audio.wav`** (demuxed speech track). Not used for a standalone upload on the public API.
-- **`InterviewVideo`** — one-to-one for **HTTP** jobs: the uploaded **source** video path (for live sessions, the **merged** `recording.webm` path under **`data/live-sessions/...`**).
-- **`TranscriptSegment`** — many per job; `source` is `AUDIO_STT` or `VIDEO_OCR`; times are **milliseconds** on a single session timeline; ordered by `(source, sequence, startMs)` for API responses.
-- **`Result`** — one JSON `payload` per job: **`stt`** metadata + **`evaluation`**; video jobs add **`pipeline`** (`kind: "video"`, crop, counts, **`finalTranscript`**, **`alignedTimeline`**).
+- **`LiveCodeSnapshot`** — **canonical session capture**: editor **`code`** + **`offsetSeconds`** (+ `sequence`, `capturedAt`) before a post-process job exists. Used as input to STT+eval and copied into job-level **`CodeSnapshot`** (`EDITOR_SNAPSHOT`) after post-process.
+- **`InterviewAudio`** — path to **16 kHz mono WAV** used for STT (video: `uploads/<jobId>/pipeline/audio.wav`; live: `live-sessions/<sessionId>/post-process/audio.wav`).
+- **`InterviewVideo`** — uploaded **source** video (classic jobs) or **merged** `recording.webm` (live jobs).
+- **`SpeechUtterance`** — many per job: **speech-only** STT intervals (**`startMs`**, **`endMs`**, **`text`**, **`sequence`**). Table **`speech_utterances`**. API DTO list: **`speechTranscript`** (and legacy alias **`transcripts`**).
+- **`CodeSnapshot`** — many per job: **point-in-time** screen/editor text (**`offsetMs`** = capture instant, **`text`**, **`sequence`**). Enum **`CodeSnapshotSource`**: **`VIDEO_OCR`** (Tesseract on ROI frames from **uploaded-video** pipeline) \| **`EDITOR_SNAPSHOT`** (from **live** `LiveCodeSnapshot` rows). Table **`code_snapshots`**. API: **`codeSnapshots`** on **`GET /api/interviews/:id`**.
+- **`Result`** — one JSON `payload` per job: **`stt`** metadata + **`evaluation`**; video jobs add **`pipeline`** (`kind: "video"`, crop, counts, **`finalTranscript`**, **`alignedTimeline`**); live jobs use **`pipeline.kind: "live_session"`** (paths under post-process dir).
 
-SQLite file: `server/data/app.db` (URL in `prisma/schema.prisma`: `file:../data/app.db` relative to `prisma/`).
+**Separation:** speech uses **time windows** (`startMs`–`endMs`); code uses **single instants** (`offsetMs`). Same interview timeline (ms from start).
+
+SQLite file: `data/app.db` at repo root (see `prisma.config.ts` / `DATABASE_URL`).
 
 ---
 
@@ -200,8 +206,8 @@ See **[README — HTTP API (summary)](../README.md#http-api-summary)** for the r
 ##### `GET /api/interviews/:id`
 
 - **`404`** if no job with that **`id`**.
-- **`202`** if **`Result`** is not ready: `id`, `status`, `message`, optional `errorMessage`, `transcripts` (usually empty until done).
-- **`200`** when complete: `id`, `status`, `result` (JSON payload), `createdAt`, `transcripts` (STT + OCR segments when present).
+- **`202`** if **`Result`** is not ready: `id`, `status`, `message`, optional `errorMessage`, `speechTranscript` / `codeSnapshots` (often empty until done), `transcripts` (= `speechTranscript`).
+- **`200`** when complete: `id`, `status`, `result` (JSON payload), `createdAt`, **`speechTranscript`** (`SpeechUtteranceDto[]`), **`codeSnapshots`** (`CodeSnapshotDto[]`), **`transcripts`** (alias for `speechTranscript`).
 
 ---
 
@@ -231,9 +237,15 @@ See **[README — HTTP API (summary)](../README.md#http-api-summary)** for the r
 ##### `VideoJobProcessor`
 
 - Runs **`E2eInterviewPipeline`** with `outputDir = uploads/<jobId>/pipeline/` and **`sttEvalJobId`** = API job id.
-- On success: replaces **`VIDEO_OCR`** and **`AUDIO_STT`** segments; **`upsert`** **`InterviewAudio`** pointing at **`pipeline/audio.wav`**; **`Result.payload`** includes **`stt`**, **`evaluation`**, and **`pipeline`** (merged transcript + alignment metadata).
+- On success: replaces **`CodeSnapshot`** rows with `source: VIDEO_OCR` and all **`SpeechUtterance`** rows for the job; **`upsert`** **`InterviewAudio`** → **`pipeline/audio.wav`**; **`Result.payload`** includes **`stt`**, **`evaluation`**, **`pipeline`** (video kind: `finalTranscript`, `alignedTimeline`, counts).
 - On failure (missing binaries, ROI/STT errors, FFmpeg errors): **`FAILED`** + `errorMessage`.
 - Frame export rate: env **`VIDEO_JOB_FRAME_FPS`** (default **2**, same spirit as CLI e2e).
+
+##### `LiveSessionPostProcessor`
+
+- After **`InterviewLiveSession`** ends: merge WebM, **FFmpeg** extract WAV, call **`SpeechTranscriptionEvaluationOrchestrator.transcribeAndEvaluate`** with times/texts from **`LiveCodeSnapshot`**, optionally **`carryForwardEditorSnapshots`**, **`problemStatementText`** from session **`question`**.
+- On success: **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`) **`createMany`**; **`InterviewAudio`**, **`Result`**, **`Job` COMPLETED**; artifacts under **`data/live-sessions/<id>/post-process/`**.
+- **Does not** invoke **`E2eInterviewPipeline`**, ROI, or Tesseract.
 
 ##### Evaluation / STT factories
 
@@ -296,8 +308,8 @@ Shared concepts: **`ffmpegExtract`**, **`transcriptFormatting`**, **`editorRoiDe
 
 1. **Webhook or SSE** — push `COMPLETED` instead of polling only.
 2. **Postgres** — swap datasource for multi-instance deployments.
-3. **Link CLI e2e dir → Job** — import existing `frames-manifest` + OCR into `VIDEO_OCR` via batch API or internal job.
-4. **Idempotent segment merge** — append OCR without full replace if needed.
+3. **Link CLI e2e dir → Job** — import existing `frames-manifest` + OCR into **`CodeSnapshot`** (`VIDEO_OCR`) via batch API or internal job.
+4. **Idempotent code rows** — append snapshots without full replace if needed.
 5. **Smaller `Result` payloads** — omit or externalize `finalTranscript` / `alignedTimeline` for very long interviews.
 
 ---

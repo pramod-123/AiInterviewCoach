@@ -433,7 +433,7 @@ export class E2eInterviewPipeline {
     this.progress("Speech-to-text (Whisper) + interview rubric evaluation…");
     const evalOptions: TranscribeAndEvaluateOptions = {
       evaluationFrameTimesSec: timesAligned,
-      evaluationFrameOcrTexts: ocrs,
+      evaluationCodeSnapshot: ocrs,
     };
     if (problemForEval) {
       evalOptions.problemStatementText = problemForEval;

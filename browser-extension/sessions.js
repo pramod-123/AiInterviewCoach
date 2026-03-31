@@ -797,7 +797,11 @@ async function selectSession(sessionId, jobId, videoChunkCount, preview, updated
   try {
     const res = await fetch(`${base}/api/interviews/${jobId}`);
     const body = await res.json().catch(() => ({}));
-    const transcripts = Array.isArray(body.transcripts) ? body.transcripts : [];
+    const transcripts = Array.isArray(body.speechTranscript)
+      ? body.speechTranscript
+      : Array.isArray(body.transcripts)
+        ? body.transcripts
+        : [];
     const badge =
       transcripts.length > 0 ? `${transcripts.length} segments` : "Waiting for speech…";
     renderTranscriptPanel(transcripts, body.result, badge);

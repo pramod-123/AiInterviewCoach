@@ -12,9 +12,10 @@ import {
 
 export type TranscribeAndEvaluateOptions = {
   problemStatementText?: string;
-  /** Frame timestamps (seconds) on the cropped video timeline; paired with `evaluationFrameOcrTexts`. */
+  /** Frame timestamps (seconds) on the cropped video timeline; paired with `evaluationCodeSnapshot`. */
   evaluationFrameTimesSec?: number[];
-  evaluationFrameOcrTexts?: string[];
+  /** Per-frame editor text from video ROI (Tesseract) or live session code snapshots, aligned with `evaluationFrameTimesSec`. */
+  evaluationCodeSnapshot?: string[];
   /**
    * Live sessions: sparse code snapshots — fill speech slices that missed a snapshot with the previous code.
    * @see applyCarryForwardEditorSnapshots
@@ -43,8 +44,8 @@ export class SpeechTranscriptionEvaluationOrchestrator {
     const transcription = await this.speechToText.transcribeFromFile(audioFilePath);
     const evalInput = transcriptionToEvaluationInput(jobId, transcription);
     const times = options?.evaluationFrameTimesSec ?? [];
-    const ocrs = options?.evaluationFrameOcrTexts ?? [];
-    let finalTranscript = buildFinalTranscriptJson(transcription, times, ocrs);
+    const codeSnapshots = options?.evaluationCodeSnapshot ?? [];
+    let finalTranscript = buildFinalTranscriptJson(transcription, times, codeSnapshots);
     if (options?.carryForwardEditorSnapshots) {
       finalTranscript = applyCarryForwardEditorSnapshots(finalTranscript);
     }

@@ -1,6 +1,6 @@
 # Ai Interview Copilot
 
-Backend service that ingests **interview screen recordings**, extracts an **editor ROI** (vision), runs **frame OCR** (Tesseract) and **speech-to-text** (Whisper), then produces a structured **rubric evaluation** (LLM). Exposes an **HTTP API** for classic **video upload** jobs, plus **live LeetCode sessions** (tab capture + code snapshots) that merge into a single recording and spawn the same post-process pipeline.
+Backend service that ingests **interview screen recordings**, runs **speech-to-text** (Whisper) and a structured **rubric evaluation** (LLM). **Uploaded video** jobs also extract an **editor ROI** (vision) and **frame OCR** (Tesseract on cropped video). **Live LeetCode sessions** capture **tab video + periodic editor code snapshots** (no Tesseract on the recording); after **`/end`**, the server merges WebM, runs STT, and evaluates using those snapshots on the same timeline. Exposes an **HTTP API** for classic **video upload** jobs and **live sessions** from the Chrome extension.
 
 The **`browser-extension/`** Chrome extension starts sessions from **leetcode.com** problems, records via the **side panel** (mic + tab), uploads chunks to the server, and opens a **sessions** report page (video, transcript, dimensions, moment-by-moment feedback).
 
@@ -77,7 +77,7 @@ Toolbar **popup** (API base URL, mic hint, **Start interview** / **Sessions**):
 **Classic video jobs**
 
 - **`POST /api/interviews`** — multipart field `file`: interview **video** (e.g. `.mov`, `.mp4`)
-- **`GET /api/interviews/:id`** — job status; when complete, includes `result` (STT summary, evaluation payload, pipeline metadata) and `transcripts`
+- **`GET /api/interviews/:id`** — job status; when complete, includes `result` (STT summary, evaluation payload, pipeline metadata). **Speech** is in `speechTranscript` (STT windows: `startMs`/`endMs`/`text`). **Persisted code/OCR** is in `codeSnapshots` (`offsetMs`, `text`, `source`: `VIDEO_OCR` \| `EDITOR_SNAPSHOT`). Field `transcripts` is a backward-compatible alias for `speechTranscript`.
 
 **Live sessions (extension)**
 
@@ -124,8 +124,8 @@ The **Node/TypeScript** service under [`server/`](./server/) runs **Fastify** + 
 
 **Data flow (conceptual)**
 
-1. **Classic upload** — `POST /api/interviews` with a **video** file → **`VideoJobProcessor`** → **`E2eInterviewPipeline`** (demux, LLM editor ROI, crop, deduped frames, Tesseract, Whisper, evaluation) → **`Job`** / **`Result`** / transcripts in SQLite and artifacts under **`data/uploads/<jobId>/`**.
-2. **Live LeetCode session** — Chrome extension → **`POST /api/live-sessions`** and related routes → WebM chunks + code snapshots → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** linked by **`liveSessionId`** and runs the **same** video pipeline on that merged file.
+1. **Classic upload** — `POST /api/interviews` with a **video** file → **`VideoJobProcessor`** → **`E2eInterviewPipeline`** (demux, LLM editor ROI, crop, deduped frames, Tesseract, Whisper, evaluation) → **`Job`** / **`Result`** / SQLite **`SpeechUtterance`** (STT) + **`CodeSnapshot`** (`VIDEO_OCR`); artifacts under **`data/uploads/<jobId>/`**.
+2. **Live LeetCode session** — extension → **`POST /api/live-sessions`** + chunk/snapshot routes → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** (`liveSessionId`), extracts **WAV**, runs **Whisper + rubric** with **extension `LiveCodeSnapshot`** rows as the code timeline (**no** ROI, **no** frame OCR) → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`); artifacts under **`data/live-sessions/<sessionId>/post-process/`**.
 
 **Low-level design** (goals, diagrams, Prisma field notes, **`ffmpegExtract`** / OCR / alignment deep dive, env tables, CLI subcommands, curl examples) lives in **[`server/DESIGN.md`](./server/DESIGN.md)**. Keep that file in sync when you change pipeline behavior or HTTP contracts beyond what the README summaries describe.
 

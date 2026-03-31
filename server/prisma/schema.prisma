@@ -13,10 +13,10 @@ enum JobStatus {
   FAILED
 }
 
-/// Where this timed text came from (mic/STT vs screen OCR).
-enum TranscriptSource {
-  AUDIO_STT
+/// Screen ROI OCR (uploaded video) vs browser editor capture (live session).
+enum CodeSnapshotSource {
   VIDEO_OCR
+  EDITOR_SNAPSHOT
 }
 
 model Job {
@@ -30,13 +30,16 @@ model Job {
   liveSessionId String?               @unique
   liveSession   InterviewLiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
 
-  interviewAudio      InterviewAudio?
-  interviewVideo      InterviewVideo?
-  transcriptSegments  TranscriptSegment[]
-  result              Result?
+  interviewAudio   InterviewAudio?
+  interviewVideo   InterviewVideo?
+  /// STT segments (`startMs`–`endMs` speech windows).
+  speechUtterances SpeechUtterance[]
+  /// Point-in-time screen/editor text (`offsetMs` on the job timeline).
+  codeSnapshots   CodeSnapshot[]
+  result          Result?
 }
 
-/// Uploaded audio artifact (file on disk). Timed speech text lives in TranscriptSegment (source AUDIO_STT).
+/// Uploaded audio artifact (file on disk). Timed speech lives in {@link SpeechUtterance}.
 model InterviewAudio {
   id               String   @id @default(uuid())
   jobId            String   @unique
@@ -61,19 +64,32 @@ model InterviewVideo {
   createdAt        DateTime @default(now())
 }
 
-/// One row per caption line or OCR snippet; times are milliseconds from the start of the interview/session timeline.
-model TranscriptSegment {
-  id        String           @id @default(uuid())
+model SpeechUtterance {
+  id        String   @id @default(uuid())
   jobId     String
-  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  source    TranscriptSource
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   startMs   Int
   endMs     Int
   text      String
-  sequence  Int              @default(0)
-  createdAt DateTime         @default(now())
+  sequence  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+  @@map("speech_utterances")
+}
+
+model CodeSnapshot {
+  id        String             @id @default(uuid())
+  jobId     String
+  job       Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  source    CodeSnapshotSource
+  offsetMs  Int
+  text      String
+  sequence  Int                @default(0)
+  createdAt DateTime           @default(now())
 
   @@index([jobId, source])
+  @@map("code_snapshots")
 }
 
 model Result {
