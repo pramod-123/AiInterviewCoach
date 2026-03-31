@@ -25,6 +25,8 @@ export type InterviewEvaluationServiceConfig = {
   loadPrompts: () => LoadedInterviewEvaluationPrompts;
   /** When set, logs full system + user prompts sent to the evaluation model (via Fastify logger). */
   promptLog?: FastifyBaseLogger;
+  /** Sampling temperature for the rubric evaluation chat call (typical range 0–2). */
+  evaluationTemperature: number;
 };
 
 /**
@@ -63,7 +65,7 @@ export class InterviewEvaluationService implements InterviewEvaluator {
     const { text, usage } = await this.llm.completeJsonChat({
       system: systemPrompt,
       user: userContent,
-      temperature: 0.4,
+      temperature: this.config.evaluationTemperature,
     });
 
     const modelId = this.llm.getModelId();

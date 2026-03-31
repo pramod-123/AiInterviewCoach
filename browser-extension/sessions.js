@@ -16,6 +16,7 @@ const detailWorkspace = document.getElementById("detailWorkspace");
 const sessTranscriptCard = document.getElementById("sess-transcript-card");
 const breadcrumbSessionId = document.getElementById("breadcrumbSessionId");
 const detailTitle = document.getElementById("detailTitle");
+const sessTokenMetaHost = document.getElementById("sessTokenMetaHost");
 const detailSub = document.getElementById("detailSub");
 const footerSessionId = document.getElementById("footerSessionId");
 const sessionVideo = document.getElementById("sessionVideo");
@@ -754,8 +755,8 @@ async function selectSession(sessionId, jobId, videoChunkCount, preview, updated
     detailSub.textContent = baseLine;
     detailSub.dataset.baseLine = baseLine;
   }
-  const prevMeta = document.getElementById("sessTokenMeta");
-  if (prevMeta) prevMeta.remove();
+  document.getElementById("sessTokenMeta")?.remove();
+  sessTokenMetaHost?.replaceChildren();
 
   void loadSessionQuestion(sessionId);
 
@@ -842,30 +843,8 @@ async function selectSession(sessionId, jobId, videoChunkCount, preview, updated
   }
 }
 
-/** Known context windows (tokens) for popular models. */
-function contextWindowForModel(model) {
-  if (typeof model !== "string") return 0;
-  const m = model.toLowerCase();
-  if (m.includes("gpt-4o-mini")) return 128000;
-  if (m.includes("gpt-4o")) return 128000;
-  if (m.includes("gpt-4-turbo")) return 128000;
-  if (m.includes("gpt-4")) return 8192;
-  if (m.includes("gpt-3.5")) return 16385;
-  if (m.includes("o1-mini")) return 128000;
-  if (m.includes("o1")) return 200000;
-  if (m.includes("o3-mini")) return 200000;
-  if (m.includes("o3")) return 200000;
-  if (m.includes("claude-3-5-sonnet")) return 200000;
-  if (m.includes("claude-3-5-haiku")) return 200000;
-  if (m.includes("claude-3-opus")) return 200000;
-  if (m.includes("claude-3-sonnet")) return 200000;
-  if (m.includes("claude-3-haiku")) return 200000;
-  if (m.includes("claude")) return 200000;
-  return 0;
-}
-
 /**
- * Render faint token-usage metadata below the session subtitle (detailSub).
+ * Render token-usage metadata just below the interview question block (small type).
  * @param {Record<string, unknown>} payload — Result.payload from the API
  */
 function renderTokenMetaUnderSession(payload) {
@@ -891,8 +870,8 @@ function renderTokenMetaUnderSession(payload) {
     return typeof v === "number" && Number.isFinite(v) ? v : 0;
   }
 
-  /** @param {string} label @param {Record<string, unknown>} usage @param {string|null} model */
-  function line(label, usage, model) {
+  /** @param {string} label @param {Record<string, unknown>} usage */
+  function line(label, usage) {
     const inp = n(usage, "inputTokens");
     const out = n(usage, "outputTokens");
     const total = n(usage, "totalTokens") || inp + out;
@@ -901,11 +880,6 @@ function renderTokenMetaUnderSession(payload) {
     if (cached > 0) s += `  (${cached.toLocaleString()} cached)`;
     const reasoning = n(usage, "reasoningTokens");
     if (reasoning > 0) s += `  (${reasoning.toLocaleString()} reasoning)`;
-    const ctx = contextWindowForModel(model);
-    if (ctx > 0 && total > 0) {
-      const pct = ((total / ctx) * 100).toFixed(1);
-      s += `  ·  ${pct}% of ${(ctx / 1000).toLocaleString()}k context`;
-    }
     return s;
   }
 
@@ -917,13 +891,16 @@ function renderTokenMetaUnderSession(payload) {
     const model = evaluation && typeof evaluation.model === "string" ? evaluation.model : null;
     const provider = evaluation && typeof evaluation.provider === "string" ? evaluation.provider : "";
     const label = model ? `${provider}/${model}` : "Evaluation";
+
     const span = document.createElement("span");
     span.className = "ic-token-meta-line";
-    span.textContent = line(label, evalUsage, model);
+    span.textContent = line(label, evalUsage);
     wrap.appendChild(span);
   }
 
-  if (detailSub) {
+  if (sessTokenMetaHost) {
+    sessTokenMetaHost.appendChild(wrap);
+  } else if (detailSub) {
     detailSub.after(wrap);
   }
 }

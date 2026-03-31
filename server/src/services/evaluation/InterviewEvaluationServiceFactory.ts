@@ -13,6 +13,20 @@ import {
 const SYSTEM_PROMPT_FILE = "interview-evaluation-system.md";
 const USER_PROMPT_FILE = "interview-evaluation-user.md";
 
+const DEFAULT_LLM_EVAL_TEMPERATURE = 0.4;
+
+function evaluationTemperatureFromEnv(env: NodeJS.ProcessEnv): number {
+  const raw = env.LLM_EVAL_TEMPERATURE?.trim();
+  if (!raw) {
+    return DEFAULT_LLM_EVAL_TEMPERATURE;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return DEFAULT_LLM_EVAL_TEMPERATURE;
+  }
+  return Math.min(2, Math.max(0, n));
+}
+
 /**
  * Returns `status: "skipped"` for every evaluate call (no LLM).
  * Used when `EVALUATION_PROVIDER` is none or the chosen provider has no API key.
@@ -71,6 +85,7 @@ export class InterviewEvaluationServiceFactory {
         provider: llm.getProviderId(),
         loadPrompts,
         promptLog,
+        evaluationTemperature: evaluationTemperatureFromEnv(this.env),
       });
     }
 
@@ -86,6 +101,7 @@ export class InterviewEvaluationServiceFactory {
         provider: llm.getProviderId(),
         loadPrompts,
         promptLog,
+        evaluationTemperature: evaluationTemperatureFromEnv(this.env),
       });
     }
 

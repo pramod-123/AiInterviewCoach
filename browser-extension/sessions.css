@@ -602,6 +602,16 @@ body {
   word-break: break-word;
 }
 
+/* LLM token summary: directly under the question card */
+.sess-token-meta-host {
+  margin: -6px 0 10px;
+  min-height: 0;
+}
+
+.sess-token-meta-host:empty {
+  margin: 0;
+}
+
 /* Markdown output (sessions detail + shared with resultView) */
 .md-content .md-p {
   margin: 0 0 0.75em;
@@ -1410,22 +1420,22 @@ body {
   color: var(--text-dim);
 }
 
-/* Token usage metadata (faint, under session subtitle) */
+/* Token usage metadata (small type, under question) */
 .ic-token-meta {
-  margin-top: 0.35rem;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.12rem;
 }
 
 .ic-token-meta-line {
   display: block;
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.65rem;
+  font-size: 0.5625rem;
   color: var(--text-dim);
   letter-spacing: 0.01em;
-  line-height: 1.45;
-  opacity: 0.55;
+  line-height: 1.4;
+  opacity: 0.62;
 }
 
 /* Footer */
