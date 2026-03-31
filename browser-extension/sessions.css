@@ -594,15 +594,107 @@ body {
   overflow-y: auto;
 }
 
-.sess-question-pre {
+.sess-question-body {
   margin: 12px 0 0;
-  padding: 0;
-  font-family: Inter, system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.55;
   color: var(--text-muted);
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Markdown output (sessions detail + shared with resultView) */
+.md-content .md-p {
+  margin: 0 0 0.75em;
+  color: var(--text-muted);
+}
+
+.md-content .md-p:last-child {
+  margin-bottom: 0;
+}
+
+.md-content .md-h1,
+.md-content .md-h2,
+.md-content .md-h3 {
+  margin: 0.6em 0 0.35em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.md-content .md-h1:first-child,
+.md-content .md-h2:first-child,
+.md-content .md-h3:first-child {
+  margin-top: 0;
+}
+
+.md-content .md-h1 {
+  font-size: 1.05rem;
+}
+
+.md-content .md-h2 {
+  font-size: 0.98rem;
+}
+
+.md-content .md-h3 {
+  font-size: 0.88rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.md-content .md-inline-code,
+.md-content .md-fence code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.88em;
+}
+
+.md-content .md-inline-code {
+  background: var(--bg-dark);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-dark);
+  color: var(--primary);
+}
+
+.md-content .md-fence {
+  margin: 0.65em 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #050506;
+  border: 1px solid var(--border-dark);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.md-content .md-fence code {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #e4e4e7;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  background: transparent;
+  border: none;
+}
+
+.md-content--tight .md-p {
+  margin: 0 0 0.45em;
+}
+
+.md-content--tight .md-p:last-child {
+  margin-bottom: 0;
+}
+
+.md-content--tight .md-fence {
+  margin: 0.45em 0;
+}
+
+#detailPanel .sess-eval-col li > .md-content {
+  flex: 1;
+  min-width: 0;
 }
 
 #detailSub {
@@ -979,6 +1071,7 @@ body {
   margin: 0 0 20px;
 }
 
+#detailPanel .summary .md-inline-code,
 #detailPanel .summary code {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.82em;
@@ -1211,10 +1304,20 @@ body {
   border-bottom: none;
 }
 
-.ic-dimensions-section .dim-table td:first-child {
-  font-weight: 600;
+.ic-dimensions-section .dim-table td.dim-area-cell {
+  width: 34%;
+  vertical-align: top;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.ic-dimensions-section .dim-table td.dim-area-cell .dim-area-title {
+  font-weight: 700;
   color: var(--text);
-  width: 28%;
+  margin: 0;
+  font-size: 0.9rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .ic-dimensions-section .dim-score {
@@ -1250,6 +1353,7 @@ body {
 .ic-dimensions-section .dim-table .dim-notes .dim-rationale-text {
   color: var(--text-muted);
   line-height: 1.45;
+  font-style: italic;
 }
 
 .ic-dimensions-section .dim-table .dim-notes .dim-evidence-list {
@@ -1258,6 +1362,27 @@ body {
   color: var(--text-muted);
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.ic-dimensions-section .dim-table .dim-notes .dim-ev-quote {
+  word-break: break-word;
+}
+
+.ic-dimensions-section .dim-table .dim-notes .dim-ev-quote--code .dim-ev-snippet {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #e4e4e7;
+  background: #050506;
+  border: 1px solid var(--border-dark);
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: baseline;
 }
 
 .ic-dimensions-section .dim-table .dim-notes .dim-ev-ts {

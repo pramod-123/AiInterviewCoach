@@ -15,6 +15,46 @@
   }
 
   /**
+   * @param {HTMLElement} el
+   * @param {string} text
+   */
+  function setNodeMarkdownOrText(el, text) {
+    const md = window.InterviewCopilotMarkdown;
+    if (md && typeof md.appendMarkdownToElement === "function") {
+      md.appendMarkdownToElement(el, text);
+    } else {
+      el.textContent = text;
+    }
+  }
+
+  /**
+   * Inline-only markdown (`code`, line breaks) — no fenced blocks. Used for dimension evidence quotes.
+   * @param {HTMLElement} el
+   * @param {string} text
+   */
+  function setNodeInlineMarkdownOrText(el, text) {
+    const md = window.InterviewCopilotMarkdown;
+    if (md && typeof md.appendInlineMarkdownToElement === "function") {
+      md.appendInlineMarkdownToElement(el, text);
+    } else {
+      el.textContent = text;
+    }
+  }
+
+  /**
+   * @param {string} text
+   * @returns {HTMLLIElement}
+   */
+  function createMarkdownListItem(text) {
+    const li = document.createElement("li");
+    const inner = document.createElement("div");
+    inner.className = "md-content md-content--tight";
+    setNodeMarkdownOrText(inner, text);
+    li.appendChild(inner);
+    return li;
+  }
+
+  /**
    * @param {number} ms
    */
   function formatTimestampMs(ms) {
@@ -25,11 +65,40 @@
   }
 
   /**
+   * @param {Record<string, unknown>} p
+   */
+  function pickRationalePointText(p) {
+    for (const key of ["text", "body", "summary", "point", "claim"]) {
+      const v = p[key];
+      if (typeof v === "string" && v.trim()) {
+        return v.trim();
+      }
+    }
+    return "";
+  }
+
+  /**
+   * Area column: rubric key only (rationale lives in Notes with points / evidence).
+   * @param {HTMLElement} td
+   * @param {string} areaKey
+   */
+  function fillDimensionAreaCell(td, areaKey) {
+    td.replaceChildren();
+    td.className = "dim-area-cell";
+    const title = document.createElement("div");
+    title.className = "dim-area-title";
+    title.textContent = areaKey.replace(/_/g, " ");
+    td.appendChild(title);
+  }
+
+  /**
+   * Notes column: per-point bullets + evidence; else flat rationale and/or legacy evidence strings.
    * @param {HTMLElement} td
    * @param {Record<string, unknown>} dim
    */
   function fillDimensionNotesCell(td, dim) {
     td.replaceChildren();
+    td.classList.remove("md-content");
     td.classList.add("dim-notes");
     const pointsRaw = dim.rationalePoints ?? dim.rationale_points;
     if (Array.isArray(pointsRaw) && pointsRaw.length > 0) {
@@ -38,7 +107,7 @@
           continue;
         }
         const p = /** @type {Record<string, unknown>} */ (pt);
-        const text = typeof p.text === "string" ? p.text : "";
+        const text = pickRationalePointText(p);
         if (!text) {
           continue;
         }
@@ -78,9 +147,23 @@
             const srcSpan = document.createElement("span");
             srcSpan.className = "dim-ev-src";
             srcSpan.textContent = src ? ` ${src}` : "";
+            const quoteSpan = document.createElement("span");
+            quoteSpan.className = "dim-ev-quote";
+            const srcLower = src.trim().toLowerCase();
+            if (srcLower === "code" || srcLower === "ocr") {
+              quoteSpan.classList.add("dim-ev-quote--code");
+              const codeEl = document.createElement("code");
+              codeEl.className = "dim-ev-snippet";
+              codeEl.textContent = quote;
+              quoteSpan.appendChild(codeEl);
+            } else {
+              quoteSpan.classList.add("md-content");
+              setNodeInlineMarkdownOrText(quoteSpan, quote);
+            }
             li.appendChild(ts);
             li.appendChild(srcSpan);
-            li.appendChild(document.createTextNode(` ${quote}`));
+            li.appendChild(document.createTextNode(" "));
+            li.appendChild(quoteSpan);
             ul.appendChild(li);
           }
           if (ul.children.length > 0) {
@@ -93,11 +176,11 @@
         return;
       }
     }
-    let note = typeof dim.rationale === "string" ? dim.rationale : "";
+    let note = typeof dim.rationale === "string" ? dim.rationale.trim() : "";
     const ev = dim.evidence;
     if (Array.isArray(ev) && ev.length > 0) {
       const evLines = ev.filter((x) => typeof x === "string").join("\n");
-      if (evLines) {
+      if (evLines.trim()) {
         note = note ? `${note}\n\nEvidence:\n${evLines}` : `Evidence:\n${evLines}`;
       }
     }
@@ -142,9 +225,7 @@
         col.appendChild(h4);
         const ul = document.createElement("ul");
         for (const s of strengths) {
-          const li = document.createElement("li");
-          li.textContent = s;
-          ul.appendChild(li);
+          ul.appendChild(createMarkdownListItem(s));
         }
         col.appendChild(ul);
         grid.appendChild(col);
@@ -157,9 +238,7 @@
         col.appendChild(h4);
         const ul = document.createElement("ul");
         for (const s of weaknesses) {
-          const li = document.createElement("li");
-          li.textContent = s;
-          ul.appendChild(li);
+          ul.appendChild(createMarkdownListItem(s));
         }
         col.appendChild(ul);
         grid.appendChild(col);
@@ -175,9 +254,7 @@
       block.appendChild(h4);
       const ul = document.createElement("ul");
       for (const line of missed) {
-        const li = document.createElement("li");
-        li.textContent = line;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(line));
       }
       block.appendChild(ul);
       root.appendChild(block);
@@ -191,9 +268,7 @@
       block.appendChild(h4);
       const ul = document.createElement("ul");
       for (const line of prep) {
-        const li = document.createElement("li");
-        li.textContent = line;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(line));
       }
       block.appendChild(ul);
       root.appendChild(block);
@@ -227,7 +302,7 @@
         const dim = /** @type {Record<string, unknown>} */ (raw);
         const tr = document.createElement("tr");
         const tdName = document.createElement("td");
-        tdName.textContent = key.replace(/_/g, " ");
+        fillDimensionAreaCell(tdName, key);
         const tdScore = document.createElement("td");
         const sc = dim.score;
         if (typeof sc === "number" && Number.isFinite(sc)) {
@@ -271,9 +346,7 @@
       root.appendChild(h3);
       const ul = document.createElement("ul");
       for (const s of strengths) {
-        const li = document.createElement("li");
-        li.textContent = s;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(s));
       }
       root.appendChild(ul);
     }
@@ -284,9 +357,7 @@
       root.appendChild(h3);
       const ul = document.createElement("ul");
       for (const s of weaknesses) {
-        const li = document.createElement("li");
-        li.textContent = s;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(s));
       }
       root.appendChild(ul);
     }
@@ -297,9 +368,7 @@
       root.appendChild(h3);
       const ul = document.createElement("ul");
       for (const s of missed) {
-        const li = document.createElement("li");
-        li.textContent = s;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(s));
       }
       root.appendChild(ul);
     }
@@ -310,9 +379,7 @@
       root.appendChild(h3);
       const ul = document.createElement("ul");
       for (const s of prep) {
-        const li = document.createElement("li");
-        li.textContent = s;
-        ul.appendChild(li);
+        ul.appendChild(createMarkdownListItem(s));
       }
       root.appendChild(ul);
     }
@@ -341,7 +408,7 @@
         const dim = /** @type {Record<string, unknown>} */ (raw);
         const tr = document.createElement("tr");
         const tdName = document.createElement("td");
-        tdName.textContent = key.replace(/_/g, " ");
+        fillDimensionAreaCell(tdName, key);
         const tdScore = document.createElement("td");
         tdScore.textContent = typeof dim.score === "number" ? String(dim.score) : "—";
         const tdRat = document.createElement("td");
@@ -388,9 +455,9 @@
     root.appendChild(h2);
 
     if (evaluation && typeof evaluation.summary === "string" && evaluation.summary.trim()) {
-      const sum = document.createElement("p");
-      sum.className = "summary";
-      sum.textContent = evaluation.summary;
+      const sum = document.createElement("div");
+      sum.className = "summary md-content";
+      setNodeMarkdownOrText(sum, evaluation.summary.trim());
       root.appendChild(sum);
     }
 

@@ -567,6 +567,86 @@ body {
   color: var(--on-surface);
 }
 
+#resultSection .summary.md-content {
+  margin-bottom: 10px;
+}
+
+#resultSection .md-content .md-p {
+  margin: 0 0 0.6em;
+  color: rgba(231, 229, 229, 0.88);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+#resultSection .md-content .md-p:last-child {
+  margin-bottom: 0;
+}
+
+#resultSection .md-content .md-h1,
+#resultSection .md-content .md-h2,
+#resultSection .md-content .md-h3 {
+  margin: 0.5em 0 0.3em;
+  font-weight: 800;
+  color: var(--on-surface);
+}
+
+#resultSection .md-content .md-h1:first-child,
+#resultSection .md-content .md-h2:first-child,
+#resultSection .md-content .md-h3:first-child {
+  margin-top: 0;
+}
+
+#resultSection .md-content .md-fence {
+  margin: 0.5em 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#resultSection .md-content .md-fence code {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--on-surface);
+  white-space: pre;
+  word-break: normal;
+  background: transparent;
+  border: none;
+}
+
+#resultSection .md-content .md-inline-code,
+#resultSection .md-content .md-fence code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+#resultSection .md-content .md-inline-code {
+  font-size: 0.85em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  color: var(--primary);
+}
+
+#resultSection .md-content--tight .md-p {
+  margin: 0 0 0.4em;
+}
+
+#resultSection .md-content--tight .md-p:last-child {
+  margin-bottom: 0;
+}
+
+#resultSection .sess-eval-col li > .md-content {
+  flex: 1;
+  min-width: 0;
+}
+
 #resultSection h3 {
   font-size: 0.6rem;
   margin: 10px 0 4px;
@@ -606,6 +686,22 @@ body {
   background: var(--surface-bright);
 }
 
+#resultSection .dim-table td.dim-area-cell {
+  vertical-align: top;
+  font-weight: normal;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--on-surface-variant);
+}
+
+#resultSection .dim-table td.dim-area-cell .dim-area-title {
+  font-weight: 700;
+  color: var(--on-surface);
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: -0.01em;
+}
+
 #resultSection .dim-table .dim-notes .dim-rationale-point {
   margin-bottom: 0.75rem;
 }
@@ -613,12 +709,34 @@ body {
 #resultSection .dim-table .dim-notes .dim-rationale-text {
   margin: 0 0 0.35em;
   line-height: 1.4;
+  font-style: italic;
 }
 
 #resultSection .dim-table .dim-notes .dim-evidence-list {
   margin: 0.15em 0 0;
   padding-left: 1rem;
   font-size: 0.72rem;
+}
+
+#resultSection .dim-table .dim-notes .dim-ev-quote {
+  word-break: break-word;
+}
+
+#resultSection .dim-table .dim-notes .dim-ev-quote--code .dim-ev-snippet {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--on-surface);
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: baseline;
 }
 
 #resultSection .dim-table .dim-notes .dim-ev-ts {

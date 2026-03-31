@@ -349,7 +349,7 @@ async function loadSessionQuestion(sessionId) {
     return;
   }
   details.hidden = true;
-  bodyEl.textContent = "";
+  bodyEl.replaceChildren();
   const base = apiBase();
   try {
     const res = await fetch(`${base}/api/live-sessions/${encodeURIComponent(sessionId)}`);
@@ -361,7 +361,12 @@ async function loadSessionQuestion(sessionId) {
     if (!q) {
       return;
     }
-    bodyEl.textContent = q;
+    const md = window.InterviewCopilotMarkdown;
+    if (md && typeof md.appendMarkdownToElement === "function") {
+      md.appendMarkdownToElement(bodyEl, q);
+    } else {
+      bodyEl.textContent = q;
+    }
     details.hidden = false;
   } catch {
     /* ignore */
