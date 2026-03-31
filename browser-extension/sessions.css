@@ -1410,6 +1410,24 @@ body {
   color: var(--text-dim);
 }
 
+/* Token usage metadata (faint, under session subtitle) */
+.ic-token-meta {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ic-token-meta-line {
+  display: block;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  opacity: 0.55;
+}
+
 /* Footer */
 .sess-footer {
   position: sticky;
