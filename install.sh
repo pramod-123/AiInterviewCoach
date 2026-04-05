@@ -2,7 +2,7 @@
 #
 # Interactive installer: GitHub Releases (server tarball + Chrome extension), host
 # dependencies (Node 20+, ffmpeg, Tesseract, Python, unzip), WhisperX + local Whisper venvs, Prisma.
-# LLM vendor: ↑/↓ menu (OpenAI vs Anthropic), then prompts derive LLM_PROVIDER and STT_PROVIDER.
+# LLM vendor: ↑/↓ menu (OpenAI vs Anthropic). STT_PROVIDER is always set to local (local Whisper).
 #
 # Usage:
 #   ./install.sh
@@ -94,8 +94,8 @@ trim_crlf() {
 # Interactive menu on /dev/tty: ↑/↓ (or 1/2) then Enter. Sets global choose_llm_index: 0=OpenAI, 1=Anthropic.
 choose_llm_provider_menu() {
   local labels=(
-    "OpenAI — LLM evaluation, remote Whisper STT, and video ROI (typical setup)"
-    "Anthropic — LLM evaluation only (OpenAI key optional for remote STT / video ROI)"
+    "OpenAI — LLM evaluation, video ROI, and local Whisper STT (typical setup)"
+    "Anthropic — LLM evaluation only (OpenAI key optional for ROI / OpenAI-only features)"
   )
   local sel=0
   local n=${#labels[@]}
@@ -441,11 +441,6 @@ main() {
     hf_token="$(trim_crlf "${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}")"
     gemini_key="$(trim_crlf "${GEMINI_API_KEY:-}")"
     gemini_model="$(trim_crlf "${GEMINI_LIVE_MODEL:-}")"
-    if [[ "$llm_choice" == "anthropic" ]] && [[ -z "$openai_key" ]]; then
-      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
-    elif [[ -n "$openai_key" ]]; then
-      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
-    fi
   else
     choose_llm_index=0
     if [[ -r /dev/tty && -w /dev/tty ]]; then
@@ -457,21 +452,17 @@ main() {
     fi
     if [[ "${choose_llm_index}" -eq 1 ]]; then
       llm_choice="anthropic"
-      say "Anthropic will run rubric evaluation (and related LLM calls). Remote STT and video ROI use OpenAI unless you use local Whisper."
+      say "Anthropic will run rubric evaluation (and related LLM calls). Speech-to-text uses local Whisper (STT_PROVIDER=local)."
       anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — for remote STT & video ROI (Enter to skip if you will use local Whisper only)")")"
-      if [[ -n "$openai_key" ]]; then
-        upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
-      else
-        upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
-        say "No OpenAI key — STT_PROVIDER=local. Enable the local Whisper venv step below, or add OPENAI_API_KEY in .env before using remote STT."
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — for video ROI and other OpenAI features (Enter to skip)")")"
+      if [[ -z "$openai_key" ]]; then
+        say "No OpenAI key — add OPENAI_API_KEY in .env before using video ROI or other OpenAI-backed features."
       fi
     else
       llm_choice="openai"
-      say "OpenAI will power LLM evaluation, remote speech-to-text, and video ROI (default integrated setup)."
+      say "OpenAI will power LLM evaluation, video ROI, and (with the local Whisper venv) offline speech-to-text."
       openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key (Enter to skip)")")"
       anthropic_key=""
-      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
     fi
     say "Hugging Face token (hf_…) is used for WhisperX/pyannote gated models (see huggingface.co/settings/tokens)."
     hf_token="$(trim_crlf "$(read_secret_prompt "Hugging Face token (Enter to skip)")")"
@@ -491,6 +482,7 @@ main() {
     fi
   fi
   upsert_env_line "LLM_PROVIDER" "LLM_PROVIDER=${llm_choice}"
+  upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
 
   if [[ -n "$openai_key" ]]; then
     upsert_env_line "OPENAI_API_KEY" "OPENAI_API_KEY=${openai_key}"
@@ -515,7 +507,7 @@ main() {
     say "Note: LLM_PROVIDER=anthropic but no Anthropic key was set — add ANTHROPIC_API_KEY in .env before using the LLM."
   fi
   if [[ "$llm_choice" == "openai" && -z "$openai_key" ]]; then
-    say "Note: LLM_PROVIDER=openai but no OpenAI key was set — add OPENAI_API_KEY in .env for LLM, remote STT, and video ROI."
+    say "Note: LLM_PROVIDER=openai but no OpenAI key was set — add OPENAI_API_KEY in .env for LLM, video ROI, and related OpenAI features."
   fi
   if [[ -z "$hf_token" ]]; then
     say "Note: No HF_TOKEN — add one in .env before using WhisperX/pyannote diarization."
@@ -560,8 +552,7 @@ exec "${venv_whisper}/bin/whisper" "\$@"
 EOF
     chmod +x "${whisper_sh}"
     upsert_env_line "LOCAL_WHISPER_EXECUTABLE" "LOCAL_WHISPER_EXECUTABLE=${whisper_sh}"
-    upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
-    say "STT_PROVIDER=local. For OpenAI Whisper API instead, set STT_PROVIDER=remote in .env."
+    say "LOCAL_WHISPER_EXECUTABLE set; STT_PROVIDER remains local."
   fi
 
   banner "Chrome extension"
@@ -613,7 +604,7 @@ EOS
   say "Start server:     ${starter}"
   say "Add to PATH (optional): export PATH=\"${INSTALL_PREFIX}/bin:\${PATH}\""
   say ""
-  say "Edit ${INSTALL_PREFIX}/.env if needed — EVALUATION_PROVIDER, STT_PROVIDER, HF_TOKEN, GEMINI_*, etc."
+  say "Edit ${INSTALL_PREFIX}/.env if needed — EVALUATION_PROVIDER, HF_TOKEN, GEMINI_*, etc. (STT_PROVIDER stays local.)"
   if [[ "${EXT_INSTALLED}" == true ]] && [[ -f "${EXT_DIR}/manifest.json" ]]; then
     say ""
     say "Chrome → Extensions → Developer mode → Load unpacked → ${EXT_DIR}"
