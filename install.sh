@@ -19,14 +19,18 @@
 #                               set OPENAI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER,
 #                               HF_TOKEN or HUGGING_FACE_HUB_TOKEN, GEMINI_API_KEY,
 #                               GEMINI_LIVE_MODEL in the environment as needed)
+#   RELEASE_TAG                 optional; skip prompt (e.g. latest or v1.2.3)
+#   INSTALL_PREFIX              optional; skip install-dir prompt
+#   INSTALL_SKIP_PYTHON_VENVS   if 1, skip WhisperX / local Whisper venv steps (CI / smoke)
+#   INSTALL_CONSUMER_START_SERVER  if 1 with INSTALL_CONSUMER_YES, start API after install
 #
 set -euo pipefail
 
 VERSION_WIRED="0.2.0-installer"
 
 REPO="${AI_INTERVIEW_COPILOT_REPO:-}"
-RELEASE_TAG="latest"
-INSTALL_PREFIX=""
+RELEASE_TAG="${RELEASE_TAG:-}"
+INSTALL_PREFIX="${INSTALL_PREFIX:-}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 RUN_SERVER_AFTER=false
 AUTO_YES="${INSTALL_CONSUMER_YES:-}"
@@ -305,7 +309,9 @@ main() {
     exit 1
   fi
 
-  RELEASE_TAG="$(prompt "Release tag or 'latest'" "latest")"
+  if [[ -z "${RELEASE_TAG}" ]]; then
+    RELEASE_TAG="$(prompt "Release tag or 'latest'" "latest")"
+  fi
   if [[ -z "${INSTALL_PREFIX}" ]]; then
     INSTALL_PREFIX="$(prompt "Install directory" "${HOME}/.local/share/ai-interview-copilot")"
   fi
@@ -445,11 +451,15 @@ main() {
   fi
 
   say "Prisma db push..."
+  # Prisma may not load .env before prisma.config defaults; consumer layout puts config at install root.
+  export DATABASE_URL="file:${db_file}"
   npx prisma db push
 
   banner "Python: WhisperX (diarization / WhisperX SRT)"
   local venv_wx="${INSTALL_PREFIX}/venv-whisperx"
-  if prompt_yn "Create venv and pip install whisperx (large download; needed for DIARIZATION_PROVIDER=whisperx)?" "y"; then
+  if [[ "${INSTALL_SKIP_PYTHON_VENVS:-}" == "1" ]]; then
+    say "INSTALL_SKIP_PYTHON_VENVS=1: skipping WhisperX venv."
+  elif prompt_yn "Create venv and pip install whisperx (large download; needed for DIARIZATION_PROVIDER=whisperx)?" "y"; then
     require_cmds python3
     say "Creating ${venv_wx} …"
     python3 -m venv "${venv_wx}"
@@ -462,7 +472,9 @@ main() {
 
   banner "Python: local Whisper CLI (offline STT)"
   local venv_whisper="${INSTALL_PREFIX}/venv-whisper"
-  if prompt_yn "Create venv and pip install openai-whisper (for STT_PROVIDER=local)?" "y"; then
+  if [[ "${INSTALL_SKIP_PYTHON_VENVS:-}" == "1" ]]; then
+    say "INSTALL_SKIP_PYTHON_VENVS=1: skipping local Whisper venv."
+  elif prompt_yn "Create venv and pip install openai-whisper (for STT_PROVIDER=local)?" "y"; then
     python3 -m venv "${venv_whisper}"
     "${venv_whisper}/bin/pip" install -U pip setuptools wheel
     "${venv_whisper}/bin/pip" install "openai-whisper"
@@ -511,7 +523,14 @@ EOS
   chmod +x "${starter}"
 
   RUN_SERVER_AFTER=false
-  if prompt_yn "Start the API server now?" "n"; then
+  if [[ "${AUTO_YES}" == "1" ]]; then
+    if [[ "${INSTALL_CONSUMER_START_SERVER:-}" == "1" ]]; then
+      say "Start the API server now? → yes (INSTALL_CONSUMER_START_SERVER=1)"
+      RUN_SERVER_AFTER=true
+    else
+      say "Start the API server now? → no (set INSTALL_CONSUMER_START_SERVER=1 with INSTALL_CONSUMER_YES to start)"
+    fi
+  elif prompt_yn "Start the API server now?" "n"; then
     RUN_SERVER_AFTER=true
   fi
 
