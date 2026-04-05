@@ -294,15 +294,6 @@ export class LiveSessionPostProcessor {
 
     const timesSec = session.codeSnapshots.map((s) => s.offsetSeconds);
     const codeTexts = session.codeSnapshots.map((s) => s.code);
-    const problemForEval = session.question?.trim() || undefined;
-
-    const evalOpts = {
-      evaluationFrameTimesSec: timesSec,
-      evaluationCodeSnapshot: codeTexts,
-      problemStatementText: problemForEval,
-      carryForwardEditorSnapshots: true as const,
-    };
-
     const forceLocalStt = process.env.LIVE_SESSION_FORCE_WHISPER_STT === "1";
     const liveInterviewerEnabled = session.liveInterviewerEnabled;
     const useWhisperXPrimary = this.srtGenerator.providerId === "whisperx";
@@ -312,9 +303,7 @@ export class LiveSessionPostProcessor {
       ? await tryLoadGeminiRealtimeForLiveSession(this.paths, this.db, sessionId)
       : null;
 
-    let transcription: SpeechTranscription;
-    /** Set only when WhisperX fallback uses {@link SpeechTranscriptionEvaluationOrchestrator.transcribeAndEvaluate} (eval runs before final persist). */
-    let evaluationEarly: InterviewEvaluationPayload | undefined;
+    let transcription: SpeechTranscription | undefined;
     let transcriptSource: "gemini_live_realtime" | "local_stt" = "local_stt";
     let geminiUtterancesForRows: GeminiDerivedUtterance[] | null = null;
     let diarization: SrtGenerationResult | undefined;
@@ -350,11 +339,10 @@ export class LiveSessionPostProcessor {
             { sessionId, jobId },
             "WhisperX produced no segments; falling back to STT_PROVIDER on tab/mic audio.wav.",
           );
-          const out = await this.speechAnalysis.transcribeAndEvaluate(audioWav, jobId, evalOpts);
-          transcription = out.transcription;
-          evaluationEarly = out.evaluation;
         }
-      } else {
+      }
+
+      if (transcription === undefined) {
         const rawTx = await this.speechAnalysis.transcribeFromFile(audioWav);
         try {
           const d = await this.srtGenerator.generate({
@@ -373,7 +361,7 @@ export class LiveSessionPostProcessor {
           if (endMs <= startMs) {
             endMs = startMs + 1;
           }
-          const label = speakerLabelForInterval(startMs, endMs, diarization);
+          const label = speakerLabelForInterval(startMs, endMs, diarization) ?? "";
           return new SpeechSegment(seg.startSec, seg.endSec, seg.text, label);
         });
         transcription = new SpeechTranscription(
@@ -388,6 +376,11 @@ export class LiveSessionPostProcessor {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await this.failJob(sessionId, jobId, `Speech pipeline failed: ${message}`);
+      return;
+    }
+
+    if (transcription === undefined) {
+      await this.failJob(sessionId, jobId, "No transcription produced.");
       return;
     }
 
@@ -435,11 +428,11 @@ export class LiveSessionPostProcessor {
               if (endMs <= startMs) {
                 endMs = startMs + 1;
               }
-              const label =
-                seg.speakerLabel !== undefined && seg.speakerLabel !== null
+              const resolved =
+                seg.speakerLabel.trim() !== ""
                   ? seg.speakerLabel
-                  : speakerLabelForInterval(startMs, endMs, diarization);
-              return this.toSttRow(jobId, seg, i, label);
+                  : (speakerLabelForInterval(startMs, endMs, diarization) ?? "");
+              return this.toSttRow(jobId, seg, i, resolved === "" ? null : resolved);
             });
       const editorSnapshotRows = codeSnapshotsFromTimelineSec(timesSec, codeTexts).map((r) => ({
         jobId,
@@ -484,8 +477,7 @@ export class LiveSessionPostProcessor {
         }
       });
 
-      const evaluation =
-        evaluationEarly ?? (await this.speechAnalysis.evaluatePersistedJob(jobId));
+      const evaluation = await this.speechAnalysis.evaluatePersistedJob(jobId);
 
       await writeE2eSpeechAnalysisArtifacts(this.files, artifactDir, jobId, transcription, evaluation);
 

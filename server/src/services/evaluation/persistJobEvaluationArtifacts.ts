@@ -31,7 +31,7 @@ function toUtteranceRows(jobId: string, transcription: SpeechTranscription): Spe
       text: seg.text,
       sequence,
     };
-    if (seg.speakerLabel !== undefined) {
+    if (seg.speakerLabel.trim() !== "") {
       row.speakerLabel = seg.speakerLabel;
     }
     return row;

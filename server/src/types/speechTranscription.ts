@@ -4,8 +4,8 @@ export class SpeechSegment {
     readonly startSec: number,
     readonly endSec: number,
     readonly text: string,
-    /** When set, persisted to {@link SpeechUtteranceInsert.speakerLabel} before evaluation (e.g. single-agent tools). */
-    readonly speakerLabel?: string | null,
+    /** Empty when unknown; otherwise persisted to {@link SpeechUtteranceInsert.speakerLabel} (e.g. single-agent tools). */
+    readonly speakerLabel: string = "",
   ) {}
 }
 
