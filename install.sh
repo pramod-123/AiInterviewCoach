@@ -2,6 +2,7 @@
 #
 # Interactive installer: GitHub Releases (server tarball + Chrome extension), host
 # dependencies (Node 20+, ffmpeg, Tesseract, Python, unzip), WhisperX + local Whisper venvs, Prisma.
+# LLM vendor: ↑/↓ menu (OpenAI vs Anthropic), then prompts derive LLM_PROVIDER and STT_PROVIDER.
 #
 # Usage:
 #   ./install.sh
@@ -88,6 +89,57 @@ trim_crlf() {
   local s="$1"
   s="${s//$'\r'/}"
   printf '%s' "$s" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+# Interactive menu on /dev/tty: ↑/↓ (or 1/2) then Enter. Sets global choose_llm_index: 0=OpenAI, 1=Anthropic.
+choose_llm_provider_menu() {
+  local labels=(
+    "OpenAI — LLM evaluation, remote Whisper STT, and video ROI (typical setup)"
+    "Anthropic — LLM evaluation only (OpenAI key optional for remote STT / video ROI)"
+  )
+  local sel=0
+  local n=${#labels[@]}
+  local k1 k2
+  while true; do
+    printf '\n' >/dev/tty
+    printf '%b\n' '\033[1m--- LLM provider ---\033[0m' >/dev/tty
+    printf '%s\n' "↑/↓ to move, Enter to confirm (or type 1 or 2)" >/dev/tty
+    local i
+    for ((i = 0; i < n; i++)); do
+      if [[ "$i" -eq "$sel" ]]; then
+        printf '  \033[7m▶ %s\033[0m\n' "${labels[$i]}" >/dev/tty
+      else
+        printf '    %s\n' "${labels[$i]}" >/dev/tty
+      fi
+    done
+    if ! IFS= read -rsn1 k1 </dev/tty 2>/dev/null; then
+      choose_llm_index=0
+      return 1
+    fi
+    if [[ "$k1" == $'\e' ]]; then
+      IFS= read -rsn2 k2 </dev/tty 2>/dev/null || true
+      case "$k2" in
+        '[A' | 'OA')
+          sel=$(((sel + n - 1) % n))
+          ;;
+        '[B' | 'OB')
+          sel=$(((sel + 1) % n))
+          ;;
+      esac
+    elif [[ "$k1" == $'\n' || "$k1" == $'\r' ]]; then
+      choose_llm_index=$sel
+      printf '\n' >/dev/tty
+      return 0
+    elif [[ "$k1" == '1' ]]; then
+      choose_llm_index=0
+      printf '\n' >/dev/tty
+      return 0
+    elif [[ "$k1" == '2' ]]; then
+      choose_llm_index=1
+      printf '\n' >/dev/tty
+      return 0
+    fi
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -389,15 +441,37 @@ main() {
     hf_token="$(trim_crlf "${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}")"
     gemini_key="$(trim_crlf "${GEMINI_API_KEY:-}")"
     gemini_model="$(trim_crlf "${GEMINI_LIVE_MODEL:-}")"
+    if [[ "$llm_choice" == "anthropic" ]] && [[ -z "$openai_key" ]]; then
+      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
+    elif [[ -n "$openai_key" ]]; then
+      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
+    fi
   else
-    say "OpenAI is used for remote speech-to-text, video ROI, and when LLM_PROVIDER=openai."
-    say "Anthropic is used when LLM_PROVIDER=anthropic (evaluation, etc.). You can skip and edit .env later."
-    openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key (Enter to skip)")")"
-    anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
-    if prompt_yn "Use Anthropic for the LLM (LLM_PROVIDER=anthropic)? Otherwise OpenAI." "n"; then
+    choose_llm_index=0
+    if [[ -r /dev/tty && -w /dev/tty ]]; then
+      say "Choose the LLM vendor (arrow keys or 1 / 2, then Enter)."
+      choose_llm_provider_menu || true
+    else
+      say "No TTY for menu; falling back to OpenAI. Set LLM_PROVIDER in .env if you need Anthropic."
+      choose_llm_index=0
+    fi
+    if [[ "${choose_llm_index}" -eq 1 ]]; then
       llm_choice="anthropic"
+      say "Anthropic will run rubric evaluation (and related LLM calls). Remote STT and video ROI use OpenAI unless you use local Whisper."
+      anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — for remote STT & video ROI (Enter to skip if you will use local Whisper only)")")"
+      if [[ -n "$openai_key" ]]; then
+        upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
+      else
+        upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
+        say "No OpenAI key — STT_PROVIDER=local. Enable the local Whisper venv step below, or add OPENAI_API_KEY in .env before using remote STT."
+      fi
     else
       llm_choice="openai"
+      say "OpenAI will power LLM evaluation, remote speech-to-text, and video ROI (default integrated setup)."
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key (Enter to skip)")")"
+      anthropic_key=""
+      upsert_env_line "STT_PROVIDER" "STT_PROVIDER=remote"
     fi
     say "Hugging Face token (hf_…) is used for WhisperX/pyannote gated models (see huggingface.co/settings/tokens)."
     hf_token="$(trim_crlf "$(read_secret_prompt "Hugging Face token (Enter to skip)")")"
