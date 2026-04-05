@@ -223,7 +223,6 @@ export class GeminiLiveWebSocketPlugin {
   }
 
   private handleBrowserSocket(socket: WebSocket, request: FastifyRequest<SessionParams>): void {
-    const log = request.log;
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       socket.close(1013, "GEMINI_API_KEY not configured");

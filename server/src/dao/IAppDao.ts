@@ -1,8 +1,6 @@
 import type {
   CodeSnapshotItem,
   CodeSnapshotSource,
-  InterviewAudioItem,
-  InterviewVideoItem,
   JobDetail,
   JobEvaluationLoad,
   JobStatus,

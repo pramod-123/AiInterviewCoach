@@ -95,7 +95,7 @@ export class VideoProcessingPipeline {
       croppedMp4,
     ]);
 
-    let priorFrames: string[] = [];
+    let priorFrames: string[];
     try {
       priorFrames = await this.files.readdir(framesDir);
     } catch {

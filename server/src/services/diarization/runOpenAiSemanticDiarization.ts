@@ -54,7 +54,7 @@ export async function runOpenAiSemanticDiarization(params: {
     `.whisper-diarize-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(tmpOut, { recursive: true });
-  let whisperRaw = "";
+  let whisperRaw: string;
   try {
     await execFileAsync(
       exe,

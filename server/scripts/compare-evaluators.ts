@@ -196,7 +196,7 @@ async function main(): Promise<void> {
       jobId,
       liveSessionId,
       generatedAt: new Date().toISOString(),
-      evaluationProvider: providerRaw,
+      evaluationProvider: process.env.EVALUATION_PROVIDER?.trim() || "single-agent",
       evalModelLabel: llm.getModelId(),
       directDurationMs: null,
       singleAgentDurationMs: null,

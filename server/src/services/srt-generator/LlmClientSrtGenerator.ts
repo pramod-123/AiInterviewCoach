@@ -26,7 +26,7 @@ export class LlmClientSrtGenerator implements ISrtGenerator {
       .map((s, i) => `${i} [${s.startSec}-${s.endSec}s] ${s.text.trim()}`)
       .join("\n");
 
-    let labels: LabelReply["labels"] = [];
+    let labels: LabelReply["labels"];
     try {
       const response = await this.llm.completeJsonChat({
         temperature: 0.2,

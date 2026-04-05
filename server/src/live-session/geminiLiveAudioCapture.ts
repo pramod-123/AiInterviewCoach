@@ -104,7 +104,7 @@ export async function readGeminiRealtimeTranscriptionRecords(
   sessionId: string,
 ): Promise<GeminiRealtimeTranscriptionRecord[]> {
   const dir = geminiAudioDir(paths, sessionId);
-  let raw = "";
+  let raw: string;
   try {
     raw = await fs.readFile(path.join(dir, REALTIME_TRANSCRIPT_LOG), "utf-8");
   } catch {
@@ -189,7 +189,7 @@ export async function readGeminiAudioChunks(
   sessionId: string,
 ): Promise<GeminiAudioChunkRecord[]> {
   const dir = geminiAudioDir(paths, sessionId);
-  let raw = "";
+  let raw: string;
   try {
     raw = await fs.readFile(path.join(dir, CHUNKS_LOG), "utf-8");
   } catch {
