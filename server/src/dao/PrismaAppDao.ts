@@ -466,6 +466,7 @@ export class PrismaAppDao implements IAppDao {
     updatedAt: Date;
     hasQuestionSaved: boolean;
     postProcessJobId: string | null;
+    postProcessTranscriptEndSec: number | null;
     videoChunkCount: number;
     liveCodeSnapshotCount: number;
   } | null> {
@@ -487,6 +488,18 @@ export class PrismaAppDao implements IAppDao {
     if (!row) {
       return null;
     }
+    const jobId = row.postProcessJob?.id ?? null;
+    let postProcessTranscriptEndSec: number | null = null;
+    if (jobId) {
+      const agg = await this.db.speechUtterance.aggregate({
+        where: { jobId },
+        _max: { endMs: true },
+      });
+      const endMs = agg._max.endMs;
+      if (endMs != null) {
+        postProcessTranscriptEndSec = endMs / 1000;
+      }
+    }
     return {
       id: row.id,
       status: row.status as LiveSessionStatus,
@@ -494,7 +507,8 @@ export class PrismaAppDao implements IAppDao {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       hasQuestionSaved: (row.question?.trim() ?? "").length > 0,
-      postProcessJobId: row.postProcessJob?.id ?? null,
+      postProcessJobId: jobId,
+      postProcessTranscriptEndSec,
       videoChunkCount: row._count.videoChunks,
       liveCodeSnapshotCount: row._count.codeSnapshots,
     };

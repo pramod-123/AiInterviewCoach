@@ -94,6 +94,8 @@ export interface IAppDao {
     updatedAt: Date;
     hasQuestionSaved: boolean;
     postProcessJobId: string | null;
+    /** Seconds on job STT timeline: end of last stored utterance for linked job; null if no job or no utterances. */
+    postProcessTranscriptEndSec: number | null;
     videoChunkCount: number;
     liveCodeSnapshotCount: number;
   } | null>;

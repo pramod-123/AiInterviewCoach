@@ -30,6 +30,11 @@ export type SessionMetadataData = {
   hasQuestionSaved: boolean;
   /** Post-process job linked to this session, if any (`Job.liveSessionId`). */
   postProcessJobId: string | null;
+  /**
+   * End of last STT utterance on the job timeline (seconds). Null if no linked job or no utterances.
+   * Agents should not scan transcript windows beyond this (add small padding if needed).
+   */
+  postProcessTranscriptEndSec: number | null;
   videoChunkCount: number;
   liveCodeSnapshotCount: number;
 };
@@ -102,6 +107,7 @@ export class DaoInterviewSessionTools implements IInterviewSessionTools {
         updatedAt: row.updatedAt.toISOString(),
         hasQuestionSaved: row.hasQuestionSaved,
         postProcessJobId: row.postProcessJobId,
+        postProcessTranscriptEndSec: row.postProcessTranscriptEndSec,
         videoChunkCount: row.videoChunkCount,
         liveCodeSnapshotCount: row.liveCodeSnapshotCount,
       },

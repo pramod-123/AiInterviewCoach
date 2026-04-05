@@ -77,7 +77,8 @@ jobs:
           tar czf "../${ASSET}" \
             dist node_modules package.json package-lock.json \
             prisma prisma.config.ts .env.example \
-            prompts agents
+            prompts agents \
+            scripts/diarize_dialogue_whisperx.py
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "../${ASSET}" | awk '{print $1}' > "../${ASSET}.sha256"
           else

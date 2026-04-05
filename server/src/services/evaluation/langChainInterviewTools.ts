@@ -5,6 +5,15 @@ import { DaoInterviewSessionTools } from "../../agent-tools/InterviewSessionTool
 import type { IAppDao } from "../../dao/IAppDao.js";
 import type { ToolResult } from "../../agent-tools/types.js";
 
+/** OpenAI structured-tool schemas require optional object fields to be nullable, not only `.optional()`. */
+function optionalEndTimeSecField() {
+  return z.number().nullable().optional();
+}
+
+function normalizeOptionalEndSec(endTimeSec: number | null | undefined): number | undefined {
+  return endTimeSec == null ? undefined : endTimeSec;
+}
+
 /** Context for building the tool list on each single-agent evaluation run. */
 export type InterviewEvaluationAgentToolContext = {
   db: IAppDao;
@@ -50,7 +59,7 @@ export class LangChainInterviewSessionToolPack {
 Input: none (session is fixed for this evaluation).
 
 Output: JSON string of ToolResult<SessionMetadataData> (tool message content).
-- ok: true → id, status (e.g. ACTIVE/ENDED), liveInterviewerEnabled, createdAt/updatedAt (ISO 8601), hasQuestionSaved (whether a prompt was stored — use get_question for text), postProcessJobId if the session has a linked post-process job, videoChunkCount, liveCodeSnapshotCount.
+- ok: true → id, status (e.g. ACTIVE/ENDED), liveInterviewerEnabled, createdAt/updatedAt (ISO 8601), hasQuestionSaved (whether a prompt was stored — use get_question for text), postProcessJobId if the session has a linked post-process job, postProcessTranscriptEndSec (seconds: end of last STT utterance for that job, or null — use to bound get_transcription_in_timerange scans; do not assume a long interview when this is small), videoChunkCount, liveCodeSnapshotCount.
 - ok: false → session not found.
 The same ToolResult is also provided as the tool message artifact (structured) for hosts that read it.`,
         schema: z.object({}),
@@ -108,10 +117,14 @@ The same ToolResult is also provided as the tool message artifact (structured) f
         endTimeSec,
       }: {
         startTimeSec: number;
-        endTimeSec?: number;
+        endTimeSec?: number | null;
       }) =>
         this.wrapContentAndArtifact(
-          await sessionTools.getCodeProgressionInTimeRange(sessionId, startTimeSec, endTimeSec),
+          await sessionTools.getCodeProgressionInTimeRange(
+            sessionId,
+            startTimeSec,
+            normalizeOptionalEndSec(endTimeSec),
+          ),
         ),
       {
         name: "get_code_progression_in_timerange",
@@ -132,25 +145,28 @@ The same ToolResult is also provided as the tool message artifact (structured) f
           startTimeSec: z
             .number()
             .describe("Start of window in seconds on the same timeline as get_code_at."),
-          endTimeSec: z
-            .number()
-            .optional()
-            .describe(
-              "End of window in seconds; must be >= startTimeSec when provided. Omit to take all snapshots from startTimeSec to the end of the session.",
-            ),
+          endTimeSec: optionalEndTimeSecField().describe(
+            "End of window in seconds; must be >= startTimeSec when a number. Omit or null for no upper bound.",
+          ),
         }),
         responseFormat: "content_and_artifact",
       },
     );
 
     const get_transcription_in_timerange = tool(
-      async ({ startTimeSec, endTimeSec }: { startTimeSec: number; endTimeSec?: number }) =>
+      async ({
+        startTimeSec,
+        endTimeSec,
+      }: {
+        startTimeSec: number;
+        endTimeSec?: number | null;
+      }) =>
         this.wrapContentAndArtifact(
           await sessionTools.getTranscriptionInTimeRange(
             sessionId,
             jobId,
             startTimeSec,
-            endTimeSec,
+            normalizeOptionalEndSec(endTimeSec),
           ),
         ),
       {
@@ -171,12 +187,9 @@ The same ToolResult is also provided as the tool message artifact (structured) f
           startTimeSec: z
             .number()
             .describe("Start of query window in seconds on the job STT timeline (non-negative)."),
-          endTimeSec: z
-            .number()
-            .optional()
-            .describe(
-              "End of window in seconds; must be >= startTimeSec when set. Omit to include all speech from startTimeSec to the end of available transcript.",
-            ),
+          endTimeSec: optionalEndTimeSecField().describe(
+            "End of window; must be >= startTimeSec when a number. Omit or null for all speech from startTimeSec onward.",
+          ),
         }),
         responseFormat: "content_and_artifact",
       },

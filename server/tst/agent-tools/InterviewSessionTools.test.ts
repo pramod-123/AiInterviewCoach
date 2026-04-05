@@ -37,6 +37,7 @@ describe("DaoInterviewSessionTools", () => {
         updatedAt,
         hasQuestionSaved: true,
         postProcessJobId: "job-uuid",
+        postProcessTranscriptEndSec: 50,
         videoChunkCount: 3,
         liveCodeSnapshotCount: 12,
       }),
@@ -53,6 +54,7 @@ describe("DaoInterviewSessionTools", () => {
         updatedAt: updatedAt.toISOString(),
         hasQuestionSaved: true,
         postProcessJobId: "job-uuid",
+        postProcessTranscriptEndSec: 50,
         videoChunkCount: 3,
         liveCodeSnapshotCount: 12,
       },
@@ -70,6 +72,7 @@ describe("DaoInterviewSessionTools", () => {
         updatedAt: t,
         hasQuestionSaved: false,
         postProcessJobId: null,
+        postProcessTranscriptEndSec: null,
         videoChunkCount: 0,
         liveCodeSnapshotCount: 0,
       }),
@@ -82,6 +85,7 @@ describe("DaoInterviewSessionTools", () => {
     }
     expect(r.data.hasQuestionSaved).toBe(false);
     expect(r.data.postProcessJobId).toBeNull();
+    expect(r.data.postProcessTranscriptEndSec).toBeNull();
   });
 
   it("getSessionMetadata errors when session missing", async () => {
