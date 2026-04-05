@@ -20,14 +20,14 @@ jobs:
   build-chrome-extension:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pack Chrome extension (MV3)
         run: |
           (cd browser-extension/chrome && zip -r "${GITHUB_WORKSPACE}/ai-interview-copilot-chrome-extension.zip" .)
           ls -la "${GITHUB_WORKSPACE}/ai-interview-copilot-chrome-extension.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: chrome-extension
           path: ai-interview-copilot-chrome-extension.zip
@@ -45,9 +45,9 @@ jobs:
             asset_suffix: darwin-x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.asset_suffix }}
           path: |
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
