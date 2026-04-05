@@ -386,6 +386,15 @@ main() {
     command -v "$c" >/dev/null 2>&1 || need_install=true
   done
   if [[ "$need_install" == true ]]; then
+    say "Missing or not usable on PATH (the server needs these for video, audio, and local tools):"
+    if ! node_is_ok; then
+      say "  - Node.js 20+ (run: node --version)"
+    fi
+    for c in ffmpeg ffprobe tesseract python3 unzip curl tar; do
+      if ! command -v "$c" >/dev/null 2>&1; then
+        say "  - ${c}"
+      fi
+    done
     if prompt_yn "Install missing tools via Homebrew (macOS) or apt/dnf (Linux)? Uses sudo on Linux." "y"; then
       install_all_system_dependencies || {
         echo "Automatic dependency install failed. Fix errors above, install prerequisites manually, then re-run." >&2
@@ -393,7 +402,10 @@ main() {
       }
     fi
   else
-    say "Node 20+, ffmpeg, tesseract, python3, unzip, curl, and tar are already present."
+    say "Host dependency check passed — required tools are on PATH:"
+    say "  Video/audio: ffmpeg ($(command -v ffmpeg)), ffprobe ($(command -v ffprobe))"
+    say "  OCR: tesseract ($(command -v tesseract))  ·  Node $(node --version 2>/dev/null)  ·  python3 ($(command -v python3))"
+    say "  Utilities: unzip, curl, tar"
   fi
 
   maybe_nvm
