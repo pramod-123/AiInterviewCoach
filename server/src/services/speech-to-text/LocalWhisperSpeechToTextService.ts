@@ -5,12 +5,12 @@ import { promisify } from "node:util";
 import { SpeechSegment, SpeechTranscription } from "../../types/speechTranscription.js";
 import type { ISpeechToTextService } from "./ISpeechToTextService.js";
 import { transcribeWavByTimeWindows, wavDurationSec } from "./wavChunkTranscription.js";
+import { whisperModelFromEnv } from "./whisperModelFromEnv.js";
 
 const execFileAsync = promisify(execFile);
 
 const PROVIDER_ID = "local";
 const DEFAULT_EXECUTABLE = "whisper";
-const DEFAULT_MODEL = "base";
 
 type WhisperJsonFile = {
   text?: string;
@@ -66,7 +66,7 @@ function parseWhisperJson(
 /**
  * Runs the OpenAI Whisper **Python** CLI (`pip install openai-whisper`) on WAV files.
  *
- * - `LOCAL_WHISPER_EXECUTABLE`, `LOCAL_WHISPER_MODEL`
+ * - `LOCAL_WHISPER_EXECUTABLE`; model: `WHISPER_MODEL` (or legacy `LOCAL_WHISPER_MODEL` / `WHISPERX_MODEL`)
  * - `LOCAL_WHISPER_MAX_CHUNK_BYTES`: if unset, the **whole file** is sent in one CLI run (no time splitting).
  *   Set a byte cap to split long files into FFmpeg windows (same PCM assumptions as other STT paths).
  */
@@ -81,7 +81,7 @@ export class LocalWhisperSpeechToTextService implements ISpeechToTextService {
 
   static tryCreate(env: NodeJS.ProcessEnv = process.env): LocalWhisperSpeechToTextService | null {
     const exe = env.LOCAL_WHISPER_EXECUTABLE?.trim() || DEFAULT_EXECUTABLE;
-    const model = env.LOCAL_WHISPER_MODEL?.trim() || DEFAULT_MODEL;
+    const model = whisperModelFromEnv(env);
     const raw = env.LOCAL_WHISPER_MAX_CHUNK_BYTES?.trim();
     const maxChunkBytes =
       raw == null || raw === ""

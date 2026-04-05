@@ -1,0 +1,192 @@
+/* Xonokai-style Prism tokens, scoped to fenced blocks (beats inherited panel colours). */
+.md-content pre.md-fence code .token.namespace {
+  opacity: 0.7;
+}
+
+.md-content pre.md-fence code .token.cdata,
+.md-content pre.md-fence code .token.comment,
+.md-content pre.md-fence code .token.doctype,
+.md-content pre.md-fence code .token.prolog {
+  color: #6f705e;
+}
+
+.md-content pre.md-fence code .token.boolean,
+.md-content pre.md-fence code .token.number,
+.md-content pre.md-fence code .token.operator {
+  color: #a77afe;
+}
+
+.md-content pre.md-fence code .token.attr-name,
+.md-content pre.md-fence code .token.string {
+  color: #e6d06c;
+}
+
+.md-content pre.md-fence code.language-css .token.string,
+.md-content pre.md-fence code .style .token.string,
+.md-content pre.md-fence code .token.entity,
+.md-content pre.md-fence code .token.url {
+  color: #e6d06c;
+}
+
+.md-content pre.md-fence code .token.inserted,
+.md-content pre.md-fence code .token.selector {
+  color: #a6e22d;
+}
+
+.md-content pre.md-fence code .token.atrule,
+.md-content pre.md-fence code .token.attr-value,
+.md-content pre.md-fence code .token.deleted,
+.md-content pre.md-fence code .token.important,
+.md-content pre.md-fence code .token.keyword {
+  color: #ef3b7d;
+}
+
+.md-content pre.md-fence code .token.regex,
+.md-content pre.md-fence code .token.statement {
+  color: #76d9e6;
+}
+
+.md-content pre.md-fence code .token.placeholder,
+.md-content pre.md-fence code .token.variable {
+  color: #fff;
+}
+
+.md-content pre.md-fence code .token.bold,
+.md-content pre.md-fence code .token.important,
+.md-content pre.md-fence code .token.statement {
+  font-weight: 700;
+}
+
+.md-content pre.md-fence code .token.punctuation {
+  color: #bebec5;
+}
+
+.md-content pre.md-fence code .token.entity {
+  cursor: help;
+}
+
+.md-content pre.md-fence code .token.italic {
+  font-style: italic;
+}
+
+.md-content pre.md-fence code .token.class-name {
+  color: #a6e22d;
+}
+
+.md-content pre.md-fence code .token.function {
+  color: #a6e22d;
+}
+
+/*
+ * Extension UI: `#detailPanel` / `#resultSection` rules use IDs. Any `… code { color: … }` with an ID
+ * outranks `.md-content … .token.*` (no ID) on the `code` element; some browsers then resolve token
+ * spans inconsistently vs inherited text. Repeat token styling with the same ID + class chain so
+ * `.token` colours always win inside those panels.
+ */
+#detailPanel .md-content pre.md-fence code .token.namespace,
+#resultSection .md-content pre.md-fence code .token.namespace {
+  opacity: 0.7;
+}
+
+#detailPanel .md-content pre.md-fence code .token.cdata,
+#detailPanel .md-content pre.md-fence code .token.comment,
+#detailPanel .md-content pre.md-fence code .token.doctype,
+#detailPanel .md-content pre.md-fence code .token.prolog,
+#resultSection .md-content pre.md-fence code .token.cdata,
+#resultSection .md-content pre.md-fence code .token.comment,
+#resultSection .md-content pre.md-fence code .token.doctype,
+#resultSection .md-content pre.md-fence code .token.prolog {
+  color: #6f705e;
+}
+
+#detailPanel .md-content pre.md-fence code .token.boolean,
+#detailPanel .md-content pre.md-fence code .token.number,
+#detailPanel .md-content pre.md-fence code .token.operator,
+#resultSection .md-content pre.md-fence code .token.boolean,
+#resultSection .md-content pre.md-fence code .token.number,
+#resultSection .md-content pre.md-fence code .token.operator {
+  color: #a77afe;
+}
+
+#detailPanel .md-content pre.md-fence code .token.attr-name,
+#detailPanel .md-content pre.md-fence code .token.string,
+#resultSection .md-content pre.md-fence code .token.attr-name,
+#resultSection .md-content pre.md-fence code .token.string {
+  color: #e6d06c;
+}
+
+#detailPanel .md-content pre.md-fence code.language-css .token.string,
+#detailPanel .md-content pre.md-fence code .style .token.string,
+#detailPanel .md-content pre.md-fence code .token.entity,
+#detailPanel .md-content pre.md-fence code .token.url,
+#resultSection .md-content pre.md-fence code.language-css .token.string,
+#resultSection .md-content pre.md-fence code .style .token.string,
+#resultSection .md-content pre.md-fence code .token.entity,
+#resultSection .md-content pre.md-fence code .token.url {
+  color: #e6d06c;
+}
+
+#detailPanel .md-content pre.md-fence code .token.inserted,
+#detailPanel .md-content pre.md-fence code .token.selector,
+#resultSection .md-content pre.md-fence code .token.inserted,
+#resultSection .md-content pre.md-fence code .token.selector {
+  color: #a6e22d;
+}
+
+#detailPanel .md-content pre.md-fence code .token.atrule,
+#detailPanel .md-content pre.md-fence code .token.attr-value,
+#detailPanel .md-content pre.md-fence code .token.deleted,
+#detailPanel .md-content pre.md-fence code .token.important,
+#detailPanel .md-content pre.md-fence code .token.keyword,
+#resultSection .md-content pre.md-fence code .token.atrule,
+#resultSection .md-content pre.md-fence code .token.attr-value,
+#resultSection .md-content pre.md-fence code .token.deleted,
+#resultSection .md-content pre.md-fence code .token.important,
+#resultSection .md-content pre.md-fence code .token.keyword {
+  color: #ef3b7d;
+}
+
+#detailPanel .md-content pre.md-fence code .token.regex,
+#detailPanel .md-content pre.md-fence code .token.statement,
+#resultSection .md-content pre.md-fence code .token.regex,
+#resultSection .md-content pre.md-fence code .token.statement {
+  color: #76d9e6;
+}
+
+#detailPanel .md-content pre.md-fence code .token.placeholder,
+#detailPanel .md-content pre.md-fence code .token.variable,
+#resultSection .md-content pre.md-fence code .token.placeholder,
+#resultSection .md-content pre.md-fence code .token.variable {
+  color: #fff;
+}
+
+#detailPanel .md-content pre.md-fence code .token.bold,
+#detailPanel .md-content pre.md-fence code .token.important,
+#detailPanel .md-content pre.md-fence code .token.statement,
+#resultSection .md-content pre.md-fence code .token.bold,
+#resultSection .md-content pre.md-fence code .token.important,
+#resultSection .md-content pre.md-fence code .token.statement {
+  font-weight: 700;
+}
+
+#detailPanel .md-content pre.md-fence code .token.punctuation,
+#resultSection .md-content pre.md-fence code .token.punctuation {
+  color: #bebec5;
+}
+
+#detailPanel .md-content pre.md-fence code .token.entity,
+#resultSection .md-content pre.md-fence code .token.entity {
+  cursor: help;
+}
+
+#detailPanel .md-content pre.md-fence code .token.italic,
+#resultSection .md-content pre.md-fence code .token.italic {
+  font-style: italic;
+}
+
+#detailPanel .md-content pre.md-fence code .token.class-name,
+#detailPanel .md-content pre.md-fence code .token.function,
+#resultSection .md-content pre.md-fence code .token.class-name,
+#resultSection .md-content pre.md-fence code .token.function {
+  color: #a6e22d;
+}

@@ -1,11 +1,11 @@
 /**
  * WebSocket client for `/api/live-sessions/:id/realtime` — streams mic PCM (16 kHz) to the server
- * and plays model PCM audio. Exposes {@link GeminiLiveBridge.start}.
- * @see server/src/http/GeminiLiveWebSocketPlugin.ts
+ * and plays model PCM audio. Editor updates use `{ type: "editorCode" }`.
+ * Exposes {@link VoiceInterviewerRealtimeBridge.start}.
+ * @see server — WebSocket route `/api/live-sessions/:id/realtime`
  */
-(function initGeminiLiveBridge(global) {
+(function initVoiceInterviewerRealtimeBridge(global) {
   const TARGET_PCM_RATE = 16000;
-  const VIDEO_INTERVAL_MS = 1000;
   const PING_MS = 25000;
 
   /**
@@ -113,7 +113,7 @@
   }
 
   /**
-   * @typedef {{ stop: () => void }} GeminiLiveHandle
+   * @typedef {{ stop: () => void; sendEditorSnapshot: (code: string) => void }} VoiceInterviewerRealtimeHandle
    * @typedef {(line: string) => void} LogFn
    * @typedef {(state: string, detail?: string) => void} StatusFn
    */
@@ -125,13 +125,11 @@
    * @param {MediaStream} options.mediaStream stream that includes the mic audio track(s)
    * @param {LogFn} options.log
    * @param {StatusFn} [options.onStatus]
-   * @param {boolean} [options.sendVideoHints] attach ~1 FPS JPEG from tab video track
-   * @returns {GeminiLiveHandle}
+   * @returns {VoiceInterviewerRealtimeHandle}
    */
   function start(options) {
     const { sessionId, apiBase, mediaStream, log } = options;
     const onStatus = options.onStatus || (() => {});
-    const sendVideoHints = options.sendVideoHints !== false;
 
     const wsUrl = `${httpToWsBase(apiBase)}/api/live-sessions/${encodeURIComponent(sessionId)}/realtime`;
     const audioTracks = mediaStream.getAudioTracks();
@@ -155,14 +153,10 @@
     const playSched = { nextTime: 0 };
     /** @type {ReturnType<typeof setInterval> | null} */
     let pingId = null;
-    /** @type {ReturnType<typeof setInterval> | null} */
-    let videoId = null;
-    /** @type {HTMLVideoElement | null} */
-    let tapVideo = null;
-    /** @type {HTMLCanvasElement | null} */
-    let tapCanvas = null;
     /** @type {ReturnType<typeof setTimeout> | null} */
     let speakingResetId = null;
+    /** Dedupe sends; cleared on upstream reconnect so the model can see the buffer again. */
+    let lastEditorPayloadSent = null;
 
     function setSpeakingUi(active) {
       if (speakingResetId) {
@@ -214,28 +208,11 @@
       playSched.nextTime = 0;
     }
 
-    function stopVideoTap() {
-      if (videoId != null) {
-        clearInterval(videoId);
-        videoId = null;
-      }
-      if (tapVideo) {
-        tapVideo.srcObject = null;
-        tapVideo.remove();
-        tapVideo = null;
-      }
-      if (tapCanvas) {
-        tapCanvas.remove();
-        tapCanvas = null;
-      }
-    }
-
     function teardown() {
       if (pingId != null) {
         clearInterval(pingId);
         pingId = null;
       }
-      stopVideoTap();
       if (speakingResetId) {
         clearTimeout(speakingResetId);
         speakingResetId = null;
@@ -293,7 +270,29 @@
       const msg = e instanceof Error ? e.message : String(e);
       log(`Voice interviewer: WebSocket failed (${msg})`);
       onStatus("error", msg);
-      return { stop: () => {} };
+      return { stop: () => {}, sendEditorSnapshot: () => {} };
+    }
+
+    /**
+     * Push full editor buffer to the server (wrapped as a realtime text turn). Skips if unchanged since last send.
+     * @param {string} code
+     */
+    function sendEditorSnapshot(code) {
+      if (typeof code !== "string") {
+        return;
+      }
+      if (code === lastEditorPayloadSent) {
+        return;
+      }
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      try {
+        ws.send(JSON.stringify({ type: "editorCode", code }));
+        lastEditorPayloadSent = code;
+      } catch {
+        /* ignore */
+      }
     }
 
     ws.onopen = async () => {
@@ -347,50 +346,11 @@
             /* ignore */
           }
         }, PING_MS);
-
-        const vTrack = mediaStream.getVideoTracks()[0];
-        if (sendVideoHints && vTrack && vTrack.readyState === "live") {
-          tapVideo = document.createElement("video");
-          tapVideo.muted = true;
-          tapVideo.playsInline = true;
-          tapVideo.setAttribute("playsinline", "true");
-          tapVideo.style.cssText = "position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-99px;";
-          document.body.appendChild(tapVideo);
-          tapCanvas = document.createElement("canvas");
-          tapCanvas.width = 640;
-          tapCanvas.height = 360;
-          tapVideo.srcObject = new MediaStream([vTrack]);
-          tapVideo.play().catch(() => {});
-
-          videoId = setInterval(() => {
-            if (closed || !ws || ws.readyState !== WebSocket.OPEN || !tapVideo || !tapCanvas) {
-              return;
-            }
-            if (tapVideo.readyState < 2) {
-              return;
-            }
-            const ctx2d = tapCanvas.getContext("2d");
-            if (!ctx2d) {
-              return;
-            }
-            try {
-              ctx2d.drawImage(tapVideo, 0, 0, tapCanvas.width, tapCanvas.height);
-              const dataUrl = tapCanvas.toDataURL("image/jpeg", 0.45);
-              const comma = dataUrl.indexOf(",");
-              const jpegB64 = comma >= 0 ? dataUrl.slice(comma + 1) : "";
-              if (jpegB64) {
-                ws.send(JSON.stringify({ type: "video", data: jpegB64, mimeType: "image/jpeg" }));
-              }
-            } catch {
-              /* ignore */
-            }
-          }, VIDEO_INTERVAL_MS);
-        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         log(`Voice interviewer: audio setup failed (${msg})`);
         onStatus("error", msg);
-        stop();
+        finalizeUserStop();
       }
     };
 
@@ -414,6 +374,7 @@
           log(`Voice interviewer: ready (model ${p.model || "?"})`);
           onStatus("ready");
         } else if (t === "reconnecting") {
+          lastEditorPayloadSent = null;
           const ms = typeof p.delayMs === "number" ? p.delayMs : 0;
           const uc = p.upstreamCode != null ? String(p.upstreamCode) : "";
           const ur = typeof p.upstreamReason === "string" && p.upstreamReason.trim() ? ` (${p.upstreamReason.trim()})` : "";
@@ -448,8 +409,8 @@
       finalizeSocketClose(ev);
     };
 
-    return { stop: finalizeUserStop };
+    return { stop: finalizeUserStop, sendEditorSnapshot };
   }
 
-  global.GeminiLiveBridge = { start };
+  global.VoiceInterviewerRealtimeBridge = { start };
 })(typeof globalThis !== "undefined" ? globalThis : window);

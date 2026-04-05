@@ -4,12 +4,12 @@ import { buildGeminiLiveInterviewerSystemInstruction } from "../../src/prompts/b
 describe("buildGeminiLiveInterviewerSystemInstruction", () => {
   it("puts interview question before base agent and trims problem text", () => {
     const out = buildGeminiLiveInterviewerSystemInstruction("  Two sum  ");
-    expect(out).toContain("## Interview question (read first;");
-    expect(out).toContain("same session");
     expect(out).toContain("professional technical interviewer");
     expect(out.indexOf("Two sum")).toBeLessThan(out.indexOf("professional technical interviewer"));
     expect(out).toContain("Two sum");
     expect(out).not.toContain("  Two sum  ");
+    expect(out).not.toContain("## Interview question");
+    expect(out).not.toContain("same session");
   });
 
   it("uses fallback when problem missing or blank", () => {

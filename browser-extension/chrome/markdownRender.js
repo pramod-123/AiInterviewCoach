@@ -1,6 +1,7 @@
 /**
- * Minimal safe Markdown → HTML for extension pages (no external scripts; CSP `script-src 'self'`).
+ * Minimal safe Markdown → HTML for extension pages (CSP `script-src 'self'`; Prism is vendored locally).
  * Supports fenced code blocks, inline `code`, paragraphs, line breaks, and single-line # / ## / ### headings.
+ * Fenced blocks always use Prism’s Java grammar + Xonokai theme (fence language tags are ignored).
  * All text is HTML-escaped except generated wrapper tags.
  */
 (function () {
@@ -15,15 +16,31 @@
       .replace(/"/g, "&quot;");
   }
 
+  /** Prism grammar for every fenced block (tags like ```python are ignored). */
+  const FENCE_PRISM_LANG = "java";
+
   /**
-   * @param {string} lang
+   * @param {HTMLElement} root
    */
-  function sanitizeLang(lang) {
-    const t = lang.trim();
-    if (!t || !/^[\w+#.-]{1,32}$/.test(t)) {
-      return "";
+  function highlightFenceBlocksInRoot(root) {
+    if (typeof Prism === "undefined" || !root || !Prism.languages?.java) {
+      return;
     }
-    return t;
+    const sel = `pre.md-fence code.language-${FENCE_PRISM_LANG}`;
+    root.querySelectorAll(sel).forEach((codeEl) => {
+      if (!(codeEl instanceof HTMLElement)) {
+        return;
+      }
+      const source = codeEl.textContent ?? "";
+      if (!source.trim()) {
+        return;
+      }
+      try {
+        codeEl.innerHTML = Prism.highlight(source, Prism.languages.java, "java");
+      } catch {
+        /* keep escaped plain text */
+      }
+    });
   }
 
   /**
@@ -94,14 +111,13 @@
   }
 
   /**
-   * @param {string} lang
+   * @param {string} _lang — ignored; highlighting is always Java-style
    * @param {string} code
    * @returns {string}
    */
-  function renderCodeBlock(lang, code) {
-    const lg = sanitizeLang(lang);
-    const cls = lg ? ` class="language-${escapeHtml(lg)}"` : "";
-    return `<pre class="md-fence"><code${cls}>${escapeHtml(code)}</code></pre>`;
+  function renderCodeBlock(_lang, code) {
+    const safe = escapeHtml(FENCE_PRISM_LANG);
+    return `<pre class="md-fence language-${safe}"><code class="language-${safe}">${escapeHtml(code)}</code></pre>`;
   }
 
   /**
@@ -179,6 +195,7 @@
       return;
     }
     injectTrustedHtml(el, html);
+    highlightFenceBlocksInRoot(el);
   }
 
   /**

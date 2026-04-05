@@ -14,13 +14,15 @@ Usage:
   python3 diarize_dialogue_whisperx.py <in.wav> <out.json>
 
 Env (optional):
-  WHISPERX_MODEL            default: base
+  WHISPER_MODEL             preferred; shared with local whisper CLI (default: base)
+  LOCAL_WHISPER_MODEL       legacy fallback
+  WHISPERX_MODEL            legacy fallback
   WHISPERX_DEVICE           default: cpu
   WHISPERX_COMPUTE_TYPE     default: int8 (cpu-friendly)
   WHISPERX_BATCH_SIZE       default: 8
   HF_TOKEN or HUGGING_FACE_HUB_TOKEN — required for diarization (script mirrors into HF_* for huggingface_hub)
-  WHISPERX_MIN_SPEAKERS     optional int
-  WHISPERX_MAX_SPEAKERS     optional int
+
+Speaker bounds for pyannote diarization are hardcoded below (min 1, max 2: solo or two-speaker interview).
 """
 
 from __future__ import annotations
@@ -29,6 +31,10 @@ import argparse
 import json
 import os
 import sys
+
+# pyannote diarization: allow one speaker (e.g. candidate only) or two (interviewer + candidate).
+WHISPERX_DIAR_MIN_SPEAKERS = 1
+WHISPERX_DIAR_MAX_SPEAKERS = 2
 
 
 def _patch_torch_load_for_pyannote_checkpoints() -> None:
@@ -83,7 +89,12 @@ def main() -> int:
     os.environ.setdefault("HF_TOKEN", hf)
     os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", hf)
 
-    model_name = os.environ.get("WHISPERX_MODEL", "base").strip() or "base"
+    model_name = (
+        (os.environ.get("WHISPER_MODEL") or "").strip()
+        or (os.environ.get("LOCAL_WHISPER_MODEL") or "").strip()
+        or (os.environ.get("WHISPERX_MODEL") or "").strip()
+        or "base"
+    )
     device = os.environ.get("WHISPERX_DEVICE", "cpu").strip() or "cpu"
     compute_type = os.environ.get("WHISPERX_COMPUTE_TYPE", "int8").strip() or "int8"
     batch_size = int(os.environ.get("WHISPERX_BATCH_SIZE", "8") or "8")
@@ -118,12 +129,11 @@ def main() -> int:
     except TypeError:
         # Older whisperx builds used use_auth_token=
         diarize_model = DiarizationPipeline(use_auth_token=hf, device=device)
-    diarize_kw = {}
-    if os.environ.get("WHISPERX_MIN_SPEAKERS"):
-        diarize_kw["min_speakers"] = int(os.environ["WHISPERX_MIN_SPEAKERS"])
-    if os.environ.get("WHISPERX_MAX_SPEAKERS"):
-        diarize_kw["max_speakers"] = int(os.environ["WHISPERX_MAX_SPEAKERS"])
-    diarize_segments = diarize_model(audio, **diarize_kw)
+    diarize_segments = diarize_model(
+        audio,
+        min_speakers=WHISPERX_DIAR_MIN_SPEAKERS,
+        max_speakers=WHISPERX_DIAR_MAX_SPEAKERS,
+    )
     result = whisperx.assign_word_speakers(diarize_segments, result)
 
     def segment_speaker(seg: dict) -> str:

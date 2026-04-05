@@ -30,11 +30,17 @@ let apiBase = "";
 /** @type {number} */
 let leetcodeTabId = NaN;
 
-/** When false, this session was created without Gemini Live; transcript is offline-only after end. */
+/** When false, this session was created without the live voice interviewer; transcript is offline-only after end. */
 let sessionAllowsLiveInterviewer = true;
 
 /** @type {number | null} */
 let codeIntervalId = null;
+
+/** Polls LeetCode editor and pushes updates over the realtime voice bridge (`editorCode`) while it is up. */
+/** @type {number | null} */
+let voiceInterviewerEditorPollId = null;
+
+const VOICE_INTERVIEWER_EDITOR_POLL_MS = 1500;
 
 /** Last editor text successfully uploaded; `null` means no snapshot yet this recording. */
 let lastUploadedCode = null;
@@ -53,7 +59,7 @@ let tabAudioPassthroughCtx = null;
 let releaseMixer = null;
 
 /** @type {{ stop: () => void } | null} */
-let geminiLiveBridgeHandle = null;
+let voiceInterviewerBridgeHandle = null;
 
 /** @type {number | null} */
 let recordingWallClockId = null;
@@ -197,16 +203,39 @@ function syncVoiceAiStatus(state, detail) {
   voiceAiStatusEl.textContent = state || "Off";
 }
 
-function stopGeminiLiveBridge() {
-  if (!geminiLiveBridgeHandle) {
+function stopVoiceInterviewerEditorPoll() {
+  if (voiceInterviewerEditorPollId != null) {
+    window.clearInterval(voiceInterviewerEditorPollId);
+    voiceInterviewerEditorPollId = null;
+  }
+}
+
+function startVoiceInterviewerEditorPoll() {
+  stopVoiceInterviewerEditorPoll();
+  voiceInterviewerEditorPollId = window.setInterval(() => {
+    if (!voiceInterviewerBridgeHandle || typeof voiceInterviewerBridgeHandle.sendEditorSnapshot !== "function") {
+      return;
+    }
+    void getCodeFromLeetCodeTab().then((got) => {
+      if (!got.ok) {
+        return;
+      }
+      voiceInterviewerBridgeHandle.sendEditorSnapshot(got.code);
+    });
+  }, VOICE_INTERVIEWER_EDITOR_POLL_MS);
+}
+
+function stopVoiceInterviewerBridge() {
+  stopVoiceInterviewerEditorPoll();
+  if (!voiceInterviewerBridgeHandle) {
     return;
   }
   try {
-    geminiLiveBridgeHandle.stop();
+    voiceInterviewerBridgeHandle.stop();
   } catch {
     /* ignore */
   }
-  geminiLiveBridgeHandle = null;
+  voiceInterviewerBridgeHandle = null;
   syncVoiceAiStatus("off");
 }
 
@@ -582,7 +611,7 @@ async function uploadVideoChunk(blob) {
 }
 
 function stopTabCapture() {
-  stopGeminiLiveBridge();
+  stopVoiceInterviewerBridge();
   if (tabRecorder && tabRecorder.state !== "inactive") {
     try {
       tabRecorder.stop();
@@ -1372,18 +1401,22 @@ async function init() {
         tabMediaStream &&
         sessionId &&
         apiBase &&
-        typeof globalThis.GeminiLiveBridge?.start === "function"
+        typeof globalThis.VoiceInterviewerRealtimeBridge?.start === "function"
       ) {
         try {
-          geminiLiveBridgeHandle = globalThis.GeminiLiveBridge.start({
+          voiceInterviewerBridgeHandle = globalThis.VoiceInterviewerRealtimeBridge.start({
             sessionId,
             apiBase,
             mediaStream: tabMediaStream,
             log,
             onStatus: (state, detail) => {
+              if (state === "ready" && lastUploadedCode != null && voiceInterviewerBridgeHandle?.sendEditorSnapshot) {
+                voiceInterviewerBridgeHandle.sendEditorSnapshot(lastUploadedCode);
+              }
               syncVoiceAiStatus(state, detail);
             },
           });
+          startVoiceInterviewerEditorPoll();
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           log(`Voice interviewer: ${msg}`);
@@ -1392,8 +1425,8 @@ async function init() {
       } else if (wantVoiceAi && !releaseMixer) {
         log("Voice interviewer skipped — enable Record microphone.");
         syncVoiceAiStatus("need_mic");
-      } else if (wantVoiceAi && releaseMixer && typeof globalThis.GeminiLiveBridge?.start !== "function") {
-        log("Voice interviewer unavailable — reload the extension (geminiLiveBridge.js not loaded).");
+      } else if (wantVoiceAi && releaseMixer && typeof globalThis.VoiceInterviewerRealtimeBridge?.start !== "function") {
+        log("Voice interviewer unavailable — reload the extension (voiceInterviewerRealtimeBridge.js not loaded).");
         syncVoiceAiStatus("error", "Reload extension");
       } else if (!wantVoiceAi) {
         syncVoiceAiStatus("disabled_setting");

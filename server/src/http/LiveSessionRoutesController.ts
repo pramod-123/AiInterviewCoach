@@ -140,7 +140,7 @@ export class LiveSessionRoutesController {
       liveInterviewerEnabled: session.liveInterviewerEnabled,
       /** Single playable WebM: per-chunk files are not standalone (only chunk 1 has WebM headers). */
       recordingWebmPath: `/api/live-sessions/${session.id}/recording.webm`,
-      /** Interview job (STT + SRT + evaluation) created when the session ends; poll `GET /api/interviews/:id`. */
+      /** Interview job (STT + SRT + evaluation) when the session ends; `GET /api/interviews/:id` or `WS /api/live-sessions/:id/post-process-events`. */
       postProcessJob: session.postProcessJob,
     });
   }

@@ -27,6 +27,7 @@ import { isWhisperXDiarizationEnabled } from "./diarization/runWhisperXDiarizati
 import { speakerLabelForInterval } from "./diarization/speakerLabelForInterval.js";
 import type { ISrtGenerator } from "./srt-generator/ISrtGenerator.js";
 import { speechTranscriptionFromWhisperXSrt } from "./srt-generator/speechTranscriptionFromWhisperXSrt.js";
+import { notifyPostProcessEvent } from "../live-session/postProcessEventsHub.js";
 
 export type LiveSessionPostProcessRunOptions = {
   /** CLI / HTTP retry: allow run while session is still ACTIVE */
@@ -62,8 +63,14 @@ export class LiveSessionPostProcessor {
     });
   }
 
-  private async failJob(jobId: string, errorMessage: string): Promise<void> {
+  private async failJob(sessionId: string, jobId: string, errorMessage: string): Promise<void> {
     await this.db.updateJob(jobId, { status: "FAILED", errorMessage });
+    notifyPostProcessEvent(sessionId, {
+      type: "post_process",
+      phase: "failed",
+      jobId,
+      errorMessage,
+    });
   }
 
   private toSttRow(
@@ -188,6 +195,12 @@ export class LiveSessionPostProcessor {
         liveSessionId: sessionId,
         errorMessage: "No video chunks to merge; cannot extract audio or run STT.",
       });
+      notifyPostProcessEvent(sessionId, {
+        type: "post_process",
+        phase: "failed",
+        jobId,
+        errorMessage: "No video chunks to merge; cannot extract audio or run STT.",
+      });
       return;
     }
 
@@ -197,6 +210,7 @@ export class LiveSessionPostProcessor {
       videoFilePath: merged.path,
       videoSizeBytes: merged.sizeBytes,
     });
+    notifyPostProcessEvent(sessionId, { type: "post_process", phase: "processing", jobId });
 
     const artifactDir = path.join(this.paths.liveSessionDir(sessionId), "post-process");
     await this.files.mkdir(artifactDir, { recursive: true });
@@ -219,7 +233,7 @@ export class LiveSessionPostProcessor {
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.failJob(jobId, `Audio extract failed: ${message}`);
+      await this.failJob(sessionId, jobId, `Audio extract failed: ${message}`);
       return;
     }
 
@@ -350,7 +364,7 @@ export class LiveSessionPostProcessor {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.failJob(jobId, `Speech pipeline failed: ${message}`);
+      await this.failJob(sessionId, jobId, `Speech pipeline failed: ${message}`);
       return;
     }
 
@@ -465,6 +479,8 @@ export class LiveSessionPostProcessor {
         await tx.updateLiveSessionStatus(sessionId, "ENDED");
       });
 
+      notifyPostProcessEvent(sessionId, { type: "post_process", phase: "complete", jobId });
+
       this.log.info(
         { sessionId, jobId, segments: sttRows.length, codeSnapshots: codeTexts.length },
         "Live session post-process completed.",
@@ -472,7 +488,7 @@ export class LiveSessionPostProcessor {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.log.error({ err, sessionId, jobId }, "Live session post-process failed after STT (persist step)");
-      await this.failJob(jobId, `Post-process persist failed: ${message}`);
+      await this.failJob(sessionId, jobId, `Post-process persist failed: ${message}`);
     }
   }
 }

@@ -1,0 +1,84 @@
+# Build a self-contained server tarball per OS/arch (dist + pruned node_modules + prisma).
+# Tag a release as v1.2.3 to publish assets install-from-github-release.sh can download.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  build-assets:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_suffix: linux-x64
+          - os: macos-14
+            asset_suffix: darwin-arm64
+          - os: macos-13
+            asset_suffix: darwin-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install, generate client, build, prune devDependencies
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+          npm prune --omit=dev
+          PRISMA_VER="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
+          npm install "prisma@${PRISMA_VER}" --omit=dev --no-save
+
+      - name: Pack tarball
+        run: |
+          ASSET="ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz"
+          tar czf "../${ASSET}" \
+            dist node_modules package.json package-lock.json \
+            prisma prisma.config.ts .env.example
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "../${ASSET}" | awk '{print $1}' > "../${ASSET}.sha256"
+          else
+            shasum -a 256 "../${ASSET}" | awk '{print $1}' > "../${ASSET}.sha256"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.asset_suffix }}
+          path: |
+            ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz
+            ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz.sha256
+
+  publish-release:
+    needs: build-assets
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import type { FastifyBaseLogger } from "fastify";
 import type { DiarizationPipelineResult } from "../../types/diarization.js";
 import { tryCreateOpenAiClient } from "../llm/openAiClient.js";
+import { whisperModelFromEnv } from "../speech-to-text/whisperModelFromEnv.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -46,7 +47,7 @@ export async function runOpenAiSemanticDiarization(params: {
   }
 
   const exe = process.env.LOCAL_WHISPER_EXECUTABLE?.trim() || "whisper";
-  const modelId = process.env.LOCAL_WHISPER_MODEL?.trim() || "base";
+  const modelId = whisperModelFromEnv(process.env);
 
   const tmpOut = path.join(
     path.dirname(wavPath),

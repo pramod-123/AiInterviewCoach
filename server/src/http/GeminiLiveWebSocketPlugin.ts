@@ -1,4 +1,3 @@
-import websocket from "@fastify/websocket";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { IAppDao } from "../dao/IAppDao.js";
 import type { AppPaths } from "../infrastructure/AppPaths.js";
@@ -6,9 +5,13 @@ import {
   EndSensitivity,
   GoogleGenAI,
   type LiveServerMessage,
+  type LiveServerSessionResumptionUpdate,
+  MediaResolution,
   Modality,
   type Session,
+  type SessionResumptionConfig,
   StartSensitivity,
+  TurnCoverage,
 } from "@google/genai";
 import type { WebSocket } from "ws";
 import {
@@ -18,15 +21,54 @@ import {
 } from "../live-session/geminiLiveAudioCapture.js";
 import { buildGeminiLiveInterviewerSystemInstruction } from "../prompts/buildGeminiLiveInterviewerSystemInstruction.js";
 
+/**
+ * Wraps candidate editor buffer for {@link Session.sendRealtimeInput} text turns.
+ * No server-side length cap — the Live API may still reject or truncate per Google’s limits.
+ * @public — exported for unit tests
+ */
+export function formatCandidateEditorSnapshotForGeminiLive(code: string): string {
+  const raw = typeof code === "string" ? code : "";
+  const body = raw.trim().length > 0 ? raw : "(empty editor buffer)";
+  return [
+    "[Candidate editor — full buffer as plain text. The interview problem is in your system instructions above. Screen/video frames are not sent; only this buffer updates when their code changes.]",
+    "",
+    body,
+  ].join("\n");
+}
+
 /** Client → server JSON (UTF-8 text frames). */
 export type GeminiLiveClientMessage =
   | { type: "audio"; data: string; mimeType?: string }
-  | { type: "video"; data: string; mimeType?: string }
+  /** LeetCode editor buffer (server formats and sends as a Live text turn). */
+  | { type: "editorCode"; code: string }
   | { type: "text"; text: string }
   | { type: "audioStreamEnd"; value?: boolean }
   | { type: "ping" };
 
 type SessionParams = { Params: { id: string } };
+
+/**
+ * Gemini API (mldev) accepts only `handle` on reconnect; `transparent` throws in the SDK
+ * (`transparent parameter is not supported in Gemini API`). Omit the field on first connect.
+ */
+function sessionResumptionConfigFromHandle(handle: string | undefined): SessionResumptionConfig | undefined {
+  if (handle == null || handle.length === 0) {
+    return undefined;
+  }
+  return { handle };
+}
+
+/** Browser payload for `sessionResumptionUpdate` (`newHandle` stays server-only). */
+function clientPayloadSessionResumptionUpdate(sr: LiveServerSessionResumptionUpdate): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    type: "sessionResumptionUpdate",
+    resumable: sr.resumable ?? null,
+  };
+  if (sr.lastConsumedClientMessageIndex != null) {
+    payload.lastConsumedClientMessageIndex = sr.lastConsumedClientMessageIndex;
+  }
+  return payload;
+}
 
 /**
  * WebSocket bridge: browser ↔ Fastify ↔ Gemini Live API (`GEMINI_API_KEY`, `GEMINI_LIVE_MODEL`).
@@ -39,10 +81,6 @@ export class GeminiLiveWebSocketPlugin {
   ) {}
 
   async register(app: FastifyInstance): Promise<void> {
-    await app.register(websocket, {
-      options: { maxPayload: 8 * 1024 * 1024 },
-    });
-
     app.get<SessionParams>(
       "/api/live-sessions/:id/realtime",
       { websocket: true },
@@ -116,6 +154,10 @@ export class GeminiLiveWebSocketPlugin {
       out.push({ type: "goAway", timeLeft: msg.goAway.timeLeft ?? null });
     }
 
+    if (msg.sessionResumptionUpdate) {
+      out.push(clientPayloadSessionResumptionUpdate(msg.sessionResumptionUpdate));
+    }
+
     return out;
   }
 
@@ -160,13 +202,10 @@ export class GeminiLiveWebSocketPlugin {
           });
         }
         break;
-      case "video":
-        if (typeof parsed.data === "string" && parsed.data.length > 0) {
+      case "editorCode":
+        if (typeof parsed.code === "string") {
           session.sendRealtimeInput({
-            video: {
-              data: parsed.data,
-              mimeType: parsed.mimeType?.trim() || "image/jpeg",
-            },
+            text: formatCandidateEditorSnapshotForGeminiLive(parsed.code),
           });
         }
         break;
@@ -245,27 +284,31 @@ export class GeminiLiveWebSocketPlugin {
     const paths = this.paths;
     /** First upstream `onopen` for this browser socket (kept across Gemini reconnects). */
     let bridgeOpenedAtWallMs: number | null = null;
+    /** Latest `newHandle` from Gemini `sessionResumptionUpdate` (used when reconnecting upstream after `onclose`). */
+    let liveResumptionHandle: string | undefined;
 
     const connectUpstream = async (): Promise<void> => {
       if (bridgeEnded || socket.readyState !== socket.OPEN) {
         return;
       }
       try {
+        const sessionResumption = sessionResumptionConfigFromHandle(liveResumptionHandle);
         geminiSession = await ai.live.connect({
           model,
           config: {
             responseModalities: [Modality.AUDIO],
+            mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
             systemInstruction,
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
+            ...(sessionResumption != null ? { sessionResumption } : {}),
             /** Wait longer before treating the candidate as “done speaking” so the model replies less often and cuts in less. */
             realtimeInputConfig: {
               automaticActivityDetection: {
-                endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
-                startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
-                silenceDurationMs: 1600,
-                prefixPaddingMs: 320,
+                endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+                startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+                silenceDurationMs: 2000,
+                prefixPaddingMs: 1000,
               },
+              turnCoverage: TurnCoverage.TURN_INCLUDES_ONLY_ACTIVITY,
             },
           },
           callbacks: {
@@ -277,6 +320,10 @@ export class GeminiLiveWebSocketPlugin {
               GeminiLiveWebSocketPlugin.safeSend(socket, { type: "ready", model });
             },
             onmessage: (msg: LiveServerMessage) => {
+              const update = msg.sessionResumptionUpdate;
+              if (update?.newHandle != null && update.newHandle.length > 0) {
+                liveResumptionHandle = update.newHandle;
+              }
               const payloads = GeminiLiveWebSocketPlugin.messageToClientPayload(msg);
               for (const p of payloads) {
                 GeminiLiveWebSocketPlugin.safeSend(socket, p);

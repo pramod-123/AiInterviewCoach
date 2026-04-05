@@ -10,6 +10,8 @@
   --text-dim: #71717a;
   --rose: #fb7185;
   --amber: #fbbf24;
+  --sess-skel-a: #1f1f22;
+  --sess-skel-b: #2a2a2f;
 }
 
 *,
@@ -682,24 +684,45 @@ body {
   margin: 0.65em 0;
   padding: 12px 14px;
   border-radius: 10px;
-  background: #050506;
-  border: 1px solid var(--border-dark);
+  background: #2a2a2a;
+  border: 1px solid #3f3f46;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Plain fences (no language); Prism Xonokai handles `pre[class*="language-"]` + tokens */
+.md-content .md-fence:not([class*="language-"]) {
+  background: #050506;
+  border-color: var(--border-dark);
 }
 
 .md-content .md-fence code {
   display: block;
   margin: 0;
   padding: 0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.75rem;
   line-height: 1.5;
-  color: #e4e4e7;
   white-space: pre;
   word-break: normal;
   overflow-wrap: normal;
   background: transparent;
   border: none;
+}
+
+.md-content .md-fence code:not([class*="language-"]) {
+  color: #e4e4e7;
+}
+
+/* Base text for non-token gaps; .token.* from prism-code-theme.css must win on spans */
+.md-content pre.md-fence code.language-java {
+  color: #f8f8f2;
+  text-shadow: none;
+}
+
+.md-content pre.md-fence code.language-java .token {
+  font-style: normal;
+  font-weight: normal;
 }
 
 .md-content--tight .md-p {
@@ -1113,12 +1136,28 @@ body {
 #detailPanel .summary {
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--text-muted);
   margin: 0 0 20px;
 }
 
-#detailPanel .summary .md-inline-code,
-#detailPanel .summary code {
+/* Do not set `color` on `.summary` itself — keep Prism fences and token spans on neutral footing with
+   the rest of `.md-content` (paragraph/heading colours are set explicitly below). */
+#detailPanel .summary .md-p {
+  color: var(--text-muted);
+}
+
+#detailPanel .summary .md-h1,
+#detailPanel .summary .md-h2,
+#detailPanel .summary .md-h3 {
+  color: var(--text);
+}
+
+/* STT meta line is `.summary` only (no `.md-content`). */
+#detailPanel .summary:not(.md-content) {
+  color: var(--text-muted);
+}
+
+/* Inline backticks only — do not target `pre > code` fences (Prism tokens + theme). */
+#detailPanel .summary .md-inline-code {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.82em;
   background: var(--bg-dark);
@@ -1593,6 +1632,98 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover,
 #transcriptLines::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
+}
+
+/* Post-process placeholders (skeleton / shimmer) */
+@keyframes sess-skel-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.sess-skel-line,
+.sess-skel-block {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    110deg,
+    var(--sess-skel-a) 0%,
+    var(--sess-skel-a) 35%,
+    var(--sess-skel-b) 50%,
+    var(--sess-skel-a) 65%,
+    var(--sess-skel-a) 100%
+  );
+  background-size: 200% 100%;
+  animation: sess-skel-shimmer 1.35s ease-in-out infinite;
+}
+
+.sess-skel-block--lg {
+  height: 20px;
+  width: 40%;
+  margin-bottom: 4px;
+}
+
+.sess-skel-block--title {
+  height: 22px;
+  width: 55%;
+  margin-bottom: 12px;
+}
+
+.sess-skel-block--dim {
+  height: 120px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.sess-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 12px;
+}
+
+.sess-skel-stack--tight {
+  gap: 8px;
+}
+
+.sess-process-hint {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+}
+
+.sess-widget--skeleton {
+  position: relative;
+}
+
+.sess-widget--skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 3;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(0, 255, 157, 0.04) 45%,
+    rgba(255, 255, 255, 0.03) 50%,
+    rgba(0, 255, 157, 0.04) 55%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: sess-skel-shimmer 1.6s ease-in-out infinite;
+}
+
+#sess-video-card.sess-widget--skeleton::after {
+  border-radius: 12px;
+}
+
+.sess-transcript-card.sess-widget--skeleton .sess-transcript-head,
+.sess-moment-card.sess-widget--skeleton .sess-moment-head {
+  opacity: 0.45;
 }
 
 @media print {

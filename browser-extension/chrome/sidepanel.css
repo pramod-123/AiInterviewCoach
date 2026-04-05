@@ -578,11 +578,26 @@ body {
 
 #resultSection .summary {
   font-size: 0.8rem;
+}
+
+/* Same as sessions detail: avoid `color` on `.summary` so it cannot compete in the cascade with
+   Prism token spans under `.md-content` (panel rules use IDs). */
+#resultSection .summary.md-content {
+  margin-bottom: 10px;
+}
+
+#resultSection .summary.md-content > .md-p {
+  color: rgba(231, 229, 229, 0.88);
+}
+
+#resultSection .summary.md-content > .md-h1,
+#resultSection .summary.md-content > .md-h2,
+#resultSection .summary.md-content > .md-h3 {
   color: var(--on-surface);
 }
 
-#resultSection .summary.md-content {
-  margin-bottom: 10px;
+#resultSection .summary:not(.md-content) {
+  color: var(--on-surface);
 }
 
 #resultSection .md-content .md-p {
@@ -614,24 +629,42 @@ body {
   margin: 0.5em 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--outline-variant);
+  background: #2a2a2a;
+  border: 1px solid #3f3f46;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+#resultSection .md-content .md-fence:not([class*="language-"]) {
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
 }
 
 #resultSection .md-content .md-fence code {
   display: block;
   margin: 0;
   padding: 0;
-  font-family: ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.68rem;
   line-height: 1.45;
-  color: var(--on-surface);
   white-space: pre;
   word-break: normal;
   background: transparent;
   border: none;
+}
+
+#resultSection .md-content .md-fence code:not([class*="language-"]) {
+  color: var(--on-surface);
+}
+
+#resultSection .md-content pre.md-fence code.language-java {
+  color: #f8f8f2;
+  text-shadow: none;
+}
+
+#resultSection .md-content pre.md-fence code.language-java .token {
+  font-style: normal;
+  font-weight: normal;
 }
 
 #resultSection .md-content .md-inline-code,

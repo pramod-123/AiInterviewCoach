@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { appDao, runAppTransaction } from "./db.js";
 import { appFileStore } from "./appFileStore.js";
@@ -14,6 +15,7 @@ import { SpeechToTextServiceFactory } from "./services/speech-to-text/SpeechToTe
 import { LiveSessionPostProcessor } from "./services/LiveSessionPostProcessor.js";
 import { VideoJobProcessor } from "./services/VideoJobProcessor.js";
 import { GeminiLiveWebSocketPlugin } from "./http/GeminiLiveWebSocketPlugin.js";
+import { LiveSessionPostProcessWebSocketPlugin } from "./http/LiveSessionPostProcessWebSocketPlugin.js";
 import { EditorRoiDetectionService } from "./video-pipeline/editorRoiDetection.js";
 import { SrtGeneratorFactory } from "./services/srt-generator/SrtGeneratorFactory.js";
 
@@ -60,6 +62,9 @@ export class InterviewCopilotServer {
     await this.app.register(multipart, {
       limits: { fileSize: 500 * 1024 * 1024 },
     });
+    await this.app.register(websocket, {
+      options: { maxPayload: 8 * 1024 * 1024 },
+    });
   }
 
   registerRoutes(): void {
@@ -98,6 +103,7 @@ export class InterviewCopilotServer {
       liveSessionPostProcessor,
     );
     liveSessionRoutes.register(this.app);
+    new LiveSessionPostProcessWebSocketPlugin(appDao).register(this.app);
 
     const jobRoutes = new JobRoutesController(appDao, this.paths, appFileStore, videoProcessor);
     jobRoutes.register(this.app);

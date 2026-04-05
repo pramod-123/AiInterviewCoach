@@ -91,4 +91,30 @@ describe("GeminiLiveWebSocketPlugin.messageToClientPayload", () => {
       { type: "goAway", timeLeft: null },
     ]);
   });
+
+  it("maps sessionResumptionUpdate without exposing newHandle", () => {
+    const msg = {
+      sessionResumptionUpdate: {
+        newHandle: "secret-token",
+        resumable: true,
+        lastConsumedClientMessageIndex: "42",
+      },
+    } as LiveServerMessage;
+    expect(GeminiLiveWebSocketPlugin.messageToClientPayload(msg)).toEqual([
+      {
+        type: "sessionResumptionUpdate",
+        resumable: true,
+        lastConsumedClientMessageIndex: "42",
+      },
+    ]);
+  });
+
+  it("maps sessionResumptionUpdate with null resumable when absent", () => {
+    const msg = {
+      sessionResumptionUpdate: {},
+    } as LiveServerMessage;
+    expect(GeminiLiveWebSocketPlugin.messageToClientPayload(msg)).toEqual([
+      { type: "sessionResumptionUpdate", resumable: null },
+    ]);
+  });
 });

@@ -288,7 +288,8 @@ Shared concepts: **`ffmpegExtract`**, **`transcriptFormatting`**, **`editorRoiDe
 | `EVALUATION_PROVIDER` | Exactly **`openai`** (default), **`anthropic`**, or **`none`** |
 | `OPENAI_STT_MODEL`, `OPENAI_EVAL_MODEL` | Whisper vs chat/eval/vision model on OpenAI (ROI uses the same chat model as eval) |
 | `ANTHROPIC_EVAL_MODEL` | e.g. `claude-3-5-haiku-20241022` |
-| `LOCAL_WHISPER_EXECUTABLE`, `LOCAL_WHISPER_MODEL`, `LOCAL_WHISPER_MAX_CHUNK_BYTES` | Only when `STT_PROVIDER=local` |
+| `WHISPER_MODEL` | Whisper **size** for local CLI + WhisperX (fallback: `LOCAL_WHISPER_MODEL`, `WHISPERX_MODEL`) |
+| `LOCAL_WHISPER_EXECUTABLE`, `LOCAL_WHISPER_MAX_CHUNK_BYTES` | Only when `STT_PROVIDER=local` |
 | `VIDEO_JOB_FRAME_FPS` | Optional fps cap after **`mpdecimate`** for API jobs (default **2**) |
 | `PORT`, `HOST` | HTTP server |
 

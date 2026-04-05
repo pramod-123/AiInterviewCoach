@@ -32,6 +32,12 @@ const footJumpVideo = document.getElementById("footJumpVideo");
 const footJumpTranscript = document.getElementById("footJumpTranscript");
 const footJumpDims = document.getElementById("footJumpDims");
 
+/** @type {WebSocket | null} */
+let postProcessWebSocket = null;
+
+/** @type {ReturnType<typeof setInterval> | null} */
+let postProcessPollTimer = null;
+
 /** @type {string | null} */
 let selectedSessionId = null;
 
@@ -337,6 +343,336 @@ function truncate(text, max) {
 function clearDimensionsMount() {
   sessDimensionsBody?.replaceChildren();
   sessDimensionsMount?.classList.add("hidden");
+}
+
+function disconnectPostProcessWebSocketOnly() {
+  if (postProcessWebSocket) {
+    try {
+      postProcessWebSocket.close();
+    } catch {
+      /* ignore */
+    }
+    postProcessWebSocket = null;
+  }
+}
+
+function clearPostProcessPoll() {
+  if (postProcessPollTimer) {
+    clearInterval(postProcessPollTimer);
+    postProcessPollTimer = null;
+  }
+}
+
+function disconnectPostProcessListeners() {
+  disconnectPostProcessWebSocketOnly();
+  clearPostProcessPoll();
+}
+
+/**
+ * @param {HTMLElement} host
+ */
+function fillTranscriptSkeleton(host) {
+  host.replaceChildren();
+  const wrap = document.createElement("div");
+  wrap.className = "sess-skel-stack";
+  for (let i = 0; i < 8; i++) {
+    const row = document.createElement("div");
+    row.className = "sess-skel-line";
+    row.style.width = `${62 + (i % 5) * 7}%`;
+    wrap.appendChild(row);
+  }
+  host.appendChild(wrap);
+}
+
+function fillMomentSkeleton() {
+  if (!momentByMomentLines || !sessMomentCard) {
+    return;
+  }
+  momentByMomentLines.replaceChildren();
+  sessMomentCard.classList.remove("hidden");
+  const wrap = document.createElement("div");
+  wrap.className = "sess-skel-stack sess-skel-stack--tight";
+  for (let i = 0; i < 4; i++) {
+    const row = document.createElement("div");
+    row.className = "sess-skel-block sess-skel-block--lg";
+    wrap.appendChild(row);
+    const row2 = document.createElement("div");
+    row2.className = "sess-skel-line";
+    row2.style.width = "92%";
+    wrap.appendChild(row2);
+  }
+  momentByMomentLines.appendChild(wrap);
+}
+
+/**
+ * @param {HTMLElement} inner
+ */
+function fillFeedbackSkeleton(inner) {
+  inner.replaceChildren();
+  const wrap = document.createElement("div");
+  wrap.className = "sess-skel-stack";
+  const title = document.createElement("div");
+  title.className = "sess-skel-block sess-skel-block--title";
+  wrap.appendChild(title);
+  for (let i = 0; i < 6; i++) {
+    const ln = document.createElement("div");
+    ln.className = "sess-skel-line";
+    ln.style.width = `${72 + (i % 3) * 8}%`;
+    wrap.appendChild(ln);
+  }
+  inner.appendChild(wrap);
+}
+
+/**
+ * @param {HTMLElement} detailInner
+ */
+function applyProcessingPlaceholders(detailInner) {
+  document.getElementById("sess-video-card")?.classList.add("sess-widget--skeleton");
+  sessTranscriptCard?.classList.add("sess-widget--skeleton");
+  sessMomentCard?.classList.add("sess-widget--skeleton");
+  if (transcriptLines) {
+    fillTranscriptSkeleton(transcriptLines);
+  }
+  fillMomentSkeleton();
+  fillFeedbackSkeleton(detailInner);
+  clearDimensionsMount();
+  sessDimensionsBody?.replaceChildren();
+  const dimSk = document.createElement("div");
+  dimSk.className = "sess-skel-stack";
+  for (let i = 0; i < 3; i++) {
+    const b = document.createElement("div");
+    b.className = "sess-skel-block sess-skel-block--dim";
+    dimSk.appendChild(b);
+  }
+  sessDimensionsBody?.appendChild(dimSk);
+  sessDimensionsMount?.classList.remove("hidden");
+  sessDimensionsMount?.classList.add("sess-widget--skeleton");
+}
+
+function clearProcessingPlaceholders() {
+  document.getElementById("sess-video-card")?.classList.remove("sess-widget--skeleton");
+  sessTranscriptCard?.classList.remove("sess-widget--skeleton");
+  sessMomentCard?.classList.remove("sess-widget--skeleton");
+  sessDimensionsMount?.classList.remove("sess-widget--skeleton");
+}
+
+/**
+ * @param {HTMLElement} detailInner
+ * @param {string} text
+ */
+function setProcessingHint(detailInner, text) {
+  let el = detailInner.querySelector(".sess-process-hint");
+  if (!el) {
+    el = document.createElement("p");
+    el.className = "sess-process-hint detail-muted";
+    detailInner.insertBefore(el, detailInner.firstChild);
+  }
+  el.textContent = text;
+}
+
+/**
+ * @param {HTMLElement} detailInner
+ */
+function removeProcessingHint(detailInner) {
+  detailInner.querySelector(".sess-process-hint")?.remove();
+}
+
+/**
+ * @param {string} sessionId
+ * @param {string} jobId
+ * @param {HTMLElement} detailInner
+ * @param {typeof window.InterviewCopilotResultView} rv
+ * @returns {Promise<{ state: "complete" | "failed" | "processing"; hint?: string }>}
+ */
+async function loadInterviewPayload(_sessionId, jobId, detailInner, rv) {
+  const base = apiBase();
+  try {
+    const res = await fetch(`${base}/api/interviews/${encodeURIComponent(jobId)}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      clearProcessingPlaceholders();
+      removeProcessingHint(detailInner);
+      detailInner.replaceChildren();
+      const err =
+        typeof body.error === "string"
+          ? body.error
+          : res.status === 404
+            ? "Interview job not found."
+            : `HTTP ${res.status}`;
+      rv.renderStatusMessage(detailInner, err, true);
+      return { state: "failed" };
+    }
+    const transcripts = Array.isArray(body.speechTranscript)
+      ? body.speechTranscript
+      : Array.isArray(body.transcripts)
+        ? body.transcripts
+        : [];
+
+    if (res.status === 200 && body.result != null) {
+      clearProcessingPlaceholders();
+      removeProcessingHint(detailInner);
+      const badge =
+        transcripts.length > 0 ? `${transcripts.length} segments` : "Transcript ready";
+      clearTranscriptSeekHighlight();
+      renderTranscriptPanel(transcripts, body.result, badge);
+      renderMomentByMomentPanel(extractMomentByMomentFromInterviewBody(body));
+      detailInner.replaceChildren();
+      rv.renderInterviewGetResponse(detailInner, body, {
+        richLayout: true,
+        omitInlineTranscriptionMeta: true,
+      });
+      moveDimensionsSection(detailInner);
+      renderTokenMetaUnderSession(
+        /** @type {Record<string, unknown>} */ (body.result),
+      );
+      return { state: "complete" };
+    }
+
+    if (body.status === "FAILED") {
+      clearProcessingPlaceholders();
+      removeProcessingHint(detailInner);
+      const badge =
+        transcripts.length > 0 ? `${transcripts.length} segments` : "—";
+      clearTranscriptSeekHighlight();
+      renderTranscriptPanel(transcripts, body.result, badge);
+      renderMomentByMomentPanel([]);
+      detailInner.replaceChildren();
+      rv.renderStatusMessage(
+        detailInner,
+        typeof body.errorMessage === "string"
+          ? body.errorMessage
+          : typeof body.message === "string"
+            ? body.message
+            : "Processing failed.",
+        true,
+      );
+      return { state: "failed" };
+    }
+
+    return {
+      state: "processing",
+      hint:
+        typeof body.message === "string"
+          ? body.message
+          : "Still processing merged recording, speech, and evaluation…",
+    };
+  } catch (e) {
+    clearProcessingPlaceholders();
+    removeProcessingHint(detailInner);
+    detailInner.replaceChildren();
+    rv.renderStatusMessage(detailInner, e instanceof Error ? e.message : String(e), true);
+    return { state: "failed" };
+  }
+}
+
+/**
+ * @param {string} sessionId
+ * @param {string} jobId
+ * @param {HTMLElement} detailInner
+ * @param {typeof window.InterviewCopilotResultView} rv
+ */
+function startPostProcessPollFallback(sessionId, jobId, detailInner, rv) {
+  clearPostProcessPoll();
+  /** @type {string} */
+  let jid = typeof jobId === "string" ? jobId.trim() : "";
+  let ticks = 0;
+  postProcessPollTimer = setInterval(() => {
+    ticks += 1;
+    if (ticks > 120) {
+      clearPostProcessPoll();
+      return;
+    }
+    void (async () => {
+      if (selectedSessionId !== sessionId) {
+        return;
+      }
+      if (!jid) {
+        jid = await resolvePostProcessJobIdFromSession(sessionId);
+        if (jid) {
+          syncListRowPostProcessJob(sessionId, jid);
+        }
+      }
+      if (!jid) {
+        return;
+      }
+      const out = await loadInterviewPayload(sessionId, jid, detailInner, rv);
+      if (out.state === "complete" || out.state === "failed") {
+        clearPostProcessPoll();
+        disconnectPostProcessWebSocketOnly();
+      }
+    })();
+  }, 4000);
+}
+
+/**
+ * @param {string} sessionId
+ * @param {string} jobId
+ * @param {HTMLElement} detailInner
+ * @param {typeof window.InterviewCopilotResultView} rv
+ */
+function wirePostProcessStream(sessionId, jobId, detailInner, rv) {
+  clearPostProcessPoll();
+  disconnectPostProcessWebSocketOnly();
+  const httpBase = apiBase();
+  const wsBase = httpBase.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:");
+  const url = `${wsBase}/api/live-sessions/${encodeURIComponent(sessionId)}/post-process-events`;
+  /** @type {string} */
+  let jobIdRef = typeof jobId === "string" ? jobId.trim() : "";
+  let ws;
+  try {
+    ws = new WebSocket(url);
+  } catch {
+    startPostProcessPollFallback(sessionId, jobIdRef, detailInner, rv);
+    return;
+  }
+  postProcessWebSocket = ws;
+  ws.addEventListener("message", (ev) => {
+    if (selectedSessionId !== sessionId) {
+      return;
+    }
+    let data;
+    try {
+      data = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    if (!data || data.type !== "post_process") {
+      return;
+    }
+    if (data.phase === "processing" && typeof data.jobId === "string") {
+      jobIdRef = data.jobId;
+      syncListRowPostProcessJob(sessionId, data.jobId);
+    }
+    if (data.phase === "complete" && typeof data.jobId === "string") {
+      syncListRowPostProcessJob(sessionId, data.jobId);
+      void loadInterviewPayload(sessionId, data.jobId, detailInner, rv).then((out) => {
+        if (out.state === "complete") {
+          disconnectPostProcessListeners();
+        }
+      });
+    }
+    if (data.phase === "failed" && typeof data.jobId === "string") {
+      disconnectPostProcessListeners();
+      clearProcessingPlaceholders();
+      removeProcessingHint(detailInner);
+      detailInner.replaceChildren();
+      rv.renderStatusMessage(
+        detailInner,
+        typeof data.errorMessage === "string" && data.errorMessage.trim()
+          ? data.errorMessage
+          : "Processing failed.",
+        true,
+      );
+    }
+    if (data.phase === "error") {
+      disconnectPostProcessWebSocketOnly();
+      startPostProcessPollFallback(sessionId, jobIdRef, detailInner, rv);
+    }
+  });
+  ws.addEventListener("error", () => {
+    disconnectPostProcessWebSocketOnly();
+    startPostProcessPollFallback(sessionId, jobIdRef, detailInner, rv);
+  });
 }
 
 /**
@@ -697,6 +1033,7 @@ function renderSessionList(sessions) {
       ? /** @type {Record<string, unknown>} */ (row.postProcessJob)
       : null;
     const jobId = job && typeof job.id === "string" ? job.id : "";
+    const jobStatus = job && typeof job.status === "string" ? job.status : "";
     const status = typeof row.status === "string" ? row.status : "—";
     const updatedAt = typeof row.updatedAt === "string" ? row.updatedAt : "";
     const preview = typeof row.questionPreview === "string" ? row.questionPreview.trim() : "";
@@ -712,6 +1049,7 @@ function renderSessionList(sessions) {
     btn.className = "sess-session-item";
     btn.dataset.sessionId = id;
     btn.dataset.jobId = jobId;
+    btn.dataset.jobStatus = jobStatus;
     btn.dataset.videoChunks = String(videoChunkCount);
     btn.dataset.preview = preview;
     btn.dataset.updatedAt = updatedAt;
@@ -755,7 +1093,7 @@ function renderSessionList(sessions) {
     btn.appendChild(meta);
 
     btn.addEventListener("click", () => {
-      void selectSession(id, jobId, videoChunkCount, preview, updatedAt);
+      void selectSession(id, jobId, videoChunkCount, preview, updatedAt, status, jobStatus);
     });
 
     sessionList.appendChild(btn);
@@ -812,11 +1150,21 @@ function selectSessionFromQueryIfPresent() {
   }
   const id = btn.dataset.sessionId ?? "";
   const jobId = btn.dataset.jobId ?? "";
+  const jobStatus = btn.dataset.jobStatus ?? "";
   const rawChunks = btn.dataset.videoChunks ?? "0";
   const videoChunkCount = Number.parseInt(rawChunks, 10);
   const preview = btn.dataset.preview ?? "";
   const updatedAt = btn.dataset.updatedAt ?? "";
-  void selectSession(id, jobId, Number.isFinite(videoChunkCount) ? videoChunkCount : 0, preview, updatedAt);
+  const status = btn.dataset.status ?? "—";
+  void selectSession(
+    id,
+    jobId,
+    Number.isFinite(videoChunkCount) ? videoChunkCount : 0,
+    preview,
+    updatedAt,
+    status,
+    jobStatus,
+  );
 
   try {
     const u = new URL(window.location.href);
@@ -846,8 +1194,19 @@ function moveDimensionsSection(inner) {
  * @param {number} videoChunkCount
  * @param {string} preview
  * @param {string} updatedAt
+ * @param {string} sessionStatus
+ * @param {string} jobStatus
  */
-async function selectSession(sessionId, jobId, videoChunkCount, preview, updatedAt) {
+async function selectSession(
+  sessionId,
+  jobId,
+  videoChunkCount,
+  preview,
+  updatedAt,
+  sessionStatus,
+  jobStatus,
+) {
+  disconnectPostProcessListeners();
   selectedSessionId = sessionId;
   clearDimensionsMount();
 
@@ -884,8 +1243,16 @@ async function selectSession(sessionId, jobId, videoChunkCount, preview, updated
   void loadSessionQuestion(sessionId);
 
   updateSessionVideo(sessionId, videoChunkCount);
-  renderTranscriptPanel([], null, "—");
-  renderMomentByMomentPanel([]);
+  if (transcriptLines) {
+    transcriptLines.replaceChildren();
+  }
+  if (transcriptBadge) {
+    transcriptBadge.textContent = "—";
+  }
+  sessMomentCard?.classList.add("hidden");
+  if (momentByMomentLines) {
+    momentByMomentLines.replaceChildren();
+  }
 
   if (!detailPanel) {
     return;
@@ -902,84 +1269,64 @@ async function selectSession(sessionId, jobId, videoChunkCount, preview, updated
   }
 
   detailPanel.replaceChildren();
+  const detailInner = document.createElement("div");
+  detailPanel.appendChild(detailInner);
+
+  const isEnded = sessionStatus === "ENDED";
+  const js = typeof jobStatus === "string" ? jobStatus : "";
 
   let effectiveJobId = typeof jobId === "string" ? jobId.trim() : "";
   if (!effectiveJobId) {
     const p = document.createElement("p");
     p.className = "detail-muted";
     p.textContent = "Checking for post-process job…";
-    detailPanel.appendChild(p);
+    detailInner.appendChild(p);
     effectiveJobId = await resolvePostProcessJobIdFromSession(sessionId);
-    detailPanel.replaceChildren();
+    detailInner.replaceChildren();
     if (effectiveJobId) {
       syncListRowPostProcessJob(sessionId, effectiveJobId);
     }
   }
 
   if (!effectiveJobId) {
-    const p = document.createElement("p");
-    p.className = "detail-muted";
-    p.textContent =
-      "No post-process job for this session yet. End the session from the recorder side panel to start processing.";
-    detailPanel.appendChild(p);
+    if (isEnded) {
+      applyProcessingPlaceholders(detailInner);
+      setProcessingHint(
+        detailInner,
+        "Waiting for post-process job to start… Results appear here when processing finishes.",
+      );
+      wirePostProcessStream(sessionId, "", detailInner, rv);
+    } else {
+      const p = document.createElement("p");
+      p.className = "detail-muted";
+      p.textContent =
+        "No post-process job for this session yet. End the session from the recorder side panel to start processing.";
+      detailInner.appendChild(p);
+    }
     return;
   }
 
-  const inner = document.createElement("div");
-  detailPanel.appendChild(inner);
-  rv.renderStatusMessage(inner, "Loading interview result…", false);
+  const likelyProcessing = isEnded && (js === "PROCESSING" || js === "PENDING");
 
-  const base = apiBase();
-  try {
-    const res = await fetch(`${base}/api/interviews/${effectiveJobId}`);
-    const body = await res.json().catch(() => ({}));
-    const transcripts = Array.isArray(body.speechTranscript)
-      ? body.speechTranscript
-      : Array.isArray(body.transcripts)
-        ? body.transcripts
-        : [];
-    const badge =
-      transcripts.length > 0 ? `${transcripts.length} segments` : "Waiting for speech…";
-    renderTranscriptPanel(transcripts, body.result, badge);
-    renderMomentByMomentPanel(extractMomentByMomentFromInterviewBody(body));
+  if (likelyProcessing) {
+    applyProcessingPlaceholders(detailInner);
+    setProcessingHint(detailInner, "Processing merged recording, speech, and evaluation…");
+  }
 
-    if (!res.ok) {
-      inner.replaceChildren();
-      rv.renderStatusMessage(
-        inner,
-        typeof body.error === "string" ? body.error : `HTTP ${res.status}`,
-        true,
-      );
-      return;
+  const out = await loadInterviewPayload(sessionId, effectiveJobId, detailInner, rv);
+  if (out.state === "complete" || out.state === "failed") {
+    disconnectPostProcessListeners();
+    return;
+  }
+
+  if (out.state === "processing") {
+    if (!likelyProcessing) {
+      applyProcessingPlaceholders(detailInner);
     }
-    inner.replaceChildren();
-    if (res.status === 200 && body.result != null) {
-      rv.renderInterviewGetResponse(inner, body, {
-        richLayout: true,
-        omitInlineTranscriptionMeta: true,
-      });
-      moveDimensionsSection(inner);
-      renderTokenMetaUnderSession(body.result);
-      return;
+    setProcessingHint(detailInner, out.hint || "Still processing…");
+    if (isEnded) {
+      wirePostProcessStream(sessionId, effectiveJobId, detailInner, rv);
     }
-    if (body.status === "FAILED") {
-      rv.renderStatusMessage(
-        inner,
-        typeof body.errorMessage === "string"
-          ? body.errorMessage
-          : typeof body.message === "string"
-            ? body.message
-            : "Processing failed.",
-        true,
-      );
-      return;
-    }
-    const msg =
-      typeof body.message === "string" ? body.message : "Still processing… Poll again later.";
-    rv.renderStatusMessage(inner, `${msg} (status: ${String(body.status)})`, false);
-  } catch (e) {
-    inner.replaceChildren();
-    rv.renderStatusMessage(inner, e instanceof Error ? e.message : String(e), true);
   }
 }
 
