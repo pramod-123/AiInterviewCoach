@@ -26,10 +26,14 @@
 #   INSTALL_CONSUMER_START_SERVER  if 1 with INSTALL_CONSUMER_YES, start API after install
 #   NO_COLOR / INSTALL_NO_COLOR   if set, disable ANSI styling (see https://no-color.org/)
 #   INSTALL_NO_CURL_PROGRESS      if set, hide curl transfer bar for large downloads
+#   INSTALL_SKIP_ZSH_SNIPPET      if 1, do not offer / append ~/.zshrc launcher shortcuts
 #
 set -euo pipefail
 
 VERSION_WIRED="0.2.0-installer"
+
+# Idempotency marker for ~/.zshrc snippet (see maybe_append_zsh_launcher_snippet).
+ZSH_LAUNCHER_MARKER='# Ai Interview Copilot launcher (install.sh)'
 
 REPO="${AI_INTERVIEW_COPILOT_REPO:-}"
 RELEASE_TAG="${RELEASE_TAG:-}"
@@ -244,6 +248,99 @@ choose_llm_provider_menu() {
   done
 }
 
+# Append aicopilot / aicopilot-server helpers to ~/.zshrc (once; uses ZSH_LAUNCHER_MARKER).
+maybe_append_zsh_launcher_snippet() {
+  local prefix="$1"
+  local zshrc="${ZDOTDIR:-$HOME}/.zshrc"
+  if [[ "${INSTALL_SKIP_ZSH_SNIPPET:-}" == "1" ]]; then
+    tick_done "Shell shortcuts skipped (INSTALL_SKIP_ZSH_SNIPPET=1)"
+    return 0
+  fi
+  local do_append=false
+  if [[ "${AUTO_YES}" == "1" ]]; then
+    say_dim "→ Append aicopilot shortcuts to ~/.zshrc? — yes (INSTALL_CONSUMER_YES=1)"
+    do_append=true
+  elif prompt_yn "Append aicopilot shortcuts to ~/.zshrc? (aicopilot = kill listener on PORT from .env, then start server)" "y"; then
+    do_append=true
+  fi
+  if [[ "$do_append" != true ]]; then
+    tick_done "Shell shortcuts declined"
+    return 0
+  fi
+  if [[ -f "$zshrc" ]] && grep -qF "${ZSH_LAUNCHER_MARKER}" "$zshrc" 2>/dev/null; then
+    say_dim "Shortcuts already in ${zshrc}"
+    tick_done "Shell shortcuts already present"
+    return 0
+  fi
+  if [[ ! -f "$zshrc" ]]; then
+    if ! touch "$zshrc" 2>/dev/null; then
+      say_warn "Could not create ${zshrc} — skip shell shortcuts."
+      tick_done "Shell shortcuts skipped (no .zshrc)"
+      return 0
+    fi
+    say_dim "Created ${zshrc}"
+  fi
+  {
+    printf '\n%s\n' "${ZSH_LAUNCHER_MARKER}"
+    printf 'export AI_INTERVIEW_COPILOT_HOME=%q\n' "${prefix}"
+    cat <<'EOS'
+aicopilot-server() {
+  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  if [[ ! -x "${root}/start-server.sh" ]]; then
+    echo "aicopilot-server: missing ${root}/start-server.sh (set AI_INTERVIEW_COPILOT_HOME?)" >&2
+    return 1
+  fi
+  (cd "$root" && exec ./start-server.sh)
+}
+
+aicopilot-server-restart() {
+  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  local port="${AI_INTERVIEW_COPILOT_PORT:-3001}"
+  if [[ -f "${root}/.env" ]]; then
+    local line
+    line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${root}/.env" 2>/dev/null | tail -1)
+    if [[ -n "$line" ]]; then
+      port="${line#*=}"
+      port="${port//\"/}"
+      port="${port//\'/}"
+      port="${port// /}"
+    fi
+  fi
+  [[ "$port" =~ ^[0-9]+$ ]] || port=3001
+  command lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | command xargs kill 2>/dev/null
+  sleep 0.3
+  aicopilot-server
+}
+
+alias aicopilot='aicopilot-server-restart'
+
+aicopilot-server-bg() {
+  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  if [[ ! -x "${root}/start-server-background.sh" ]]; then
+    echo "aicopilot-server-bg: missing ${root}/start-server-background.sh" >&2
+    return 1
+  fi
+  (cd "$root" && ./start-server-background.sh)
+}
+
+alias aicopilot-bg='aicopilot-server-bg'
+
+aicopilot-server-stop() {
+  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  if [[ ! -x "${root}/stop-server.sh" ]]; then
+    echo "aicopilot-server-stop: missing ${root}/stop-server.sh" >&2
+    return 1
+  fi
+  (cd "$root" && ./stop-server.sh)
+}
+
+alias aicopilot-stop='aicopilot-server-stop'
+EOS
+  } >>"$zshrc"
+  say_ok "Shell shortcuts → ${zshrc} — ${C_BOLD}aicopilot${C_RST} · ${C_BOLD}aicopilot-bg${C_RST} · ${C_BOLD}aicopilot-stop${C_RST}"
+  tick_done "Shell shortcuts installed"
+}
+
 # ---------------------------------------------------------------------------
 # Platform
 # ---------------------------------------------------------------------------
@@ -454,7 +551,7 @@ download_asset() {
 # ---------------------------------------------------------------------------
 
 main() {
-  INSTALL_PROGRESS_TOTAL=11
+  INSTALL_PROGRESS_TOTAL=12
   INSTALL_PROGRESS_NUM=0
 
   install_welcome
@@ -738,8 +835,69 @@ cd "$ROOT"
 exec node dist/index.js
 EOS
   chmod +x "${starter}"
-  tick_done "start-server.sh installed"
+
+  local starter_bg="${INSTALL_PREFIX}/start-server-background.sh"
+  cat >"${starter_bg}" <<'EOS'
+#!/usr/bin/env bash
+# Run the API in the background with nohup; append stdout/stderr to server.log in this directory.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+LOG="${ROOT}/server.log"
+PORT=3001
+if [[ -f "${ROOT}/.env" ]]; then
+  _line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${ROOT}/.env" 2>/dev/null | tail -1)
+  if [[ -n "${_line}" ]]; then
+    PORT="${_line#*=}"
+    PORT="${PORT//\"/}"
+    PORT="${PORT//\'/}"
+    PORT="${PORT// /}"
+  fi
+fi
+[[ "${PORT}" =~ ^[0-9]+$ ]] || PORT=3001
+command lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null | command xargs kill 2>/dev/null || true
+sleep 0.3
+{
+  echo ""
+  echo "===== $(date) — starting server (PORT=${PORT}) ====="
+} >>"${LOG}"
+nohup node dist/index.js >>"${LOG}" 2>&1 &
+echo $! >"${ROOT}/server.pid"
+printf 'Started in background, PID %s — log: %s\n' "$(cat "${ROOT}/server.pid")" "${LOG}"
+EOS
+  chmod +x "${starter_bg}"
+
+  local stopper="${INSTALL_PREFIX}/stop-server.sh"
+  cat >"${stopper}" <<'EOS'
+#!/usr/bin/env bash
+# Stop the API: kill whatever is listening on PORT from .env (default 3001). Removes server.pid if present.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PORT=3001
+if [[ -f "${ROOT}/.env" ]]; then
+  _line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${ROOT}/.env" 2>/dev/null | tail -1)
+  if [[ -n "${_line}" ]]; then
+    PORT="${_line#*=}"
+    PORT="${PORT//\"/}"
+    PORT="${PORT//\'/}"
+    PORT="${PORT// /}"
+  fi
+fi
+[[ "${PORT}" =~ ^[0-9]+$ ]] || PORT=3001
+if command lsof -ti "tcp:${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+  command lsof -ti "tcp:${PORT}" -sTCP:LISTEN | command xargs kill 2>/dev/null || true
+  printf 'Stopped process listening on port %s.\n' "${PORT}"
+else
+  printf 'No process listening on port %s.\n' "${PORT}"
+fi
+rm -f "${ROOT}/server.pid"
+EOS
+  chmod +x "${stopper}"
+  tick_done "start-server.sh + background launcher + stop-server.sh (→ server.log)"
   bump_install_progress "Launcher"
+
+  maybe_append_zsh_launcher_snippet "${INSTALL_PREFIX}"
+  bump_install_progress "Shell shortcuts"
 
   RUN_SERVER_AFTER=false
   if [[ "${AUTO_YES}" == "1" ]]; then
@@ -761,6 +919,12 @@ EOS
   say ""
   say_ok "Install root  ${INSTALL_PREFIX}"
   say_ok "Start server  ${starter}"
+  say_ok "Background + logs  ${starter_bg}  (appends ${INSTALL_PREFIX}/server.log, writes ${INSTALL_PREFIX}/server.pid)"
+  say_ok "Stop server     ${stopper}"
+  local _zshrc_done="${ZDOTDIR:-$HOME}/.zshrc"
+  if [[ -f "${_zshrc_done}" ]] && grep -qF "${ZSH_LAUNCHER_MARKER}" "${_zshrc_done}" 2>/dev/null; then
+    say_dim "Shell: ${C_BOLD}aicopilot${C_RST} · ${C_BOLD}aicopilot-bg${C_RST} · ${C_BOLD}aicopilot-stop${C_RST} (source ${_zshrc_done} first)"
+  fi
   say_dim "Optional PATH: export PATH=\"${INSTALL_PREFIX}/bin:\${PATH}\""
   say ""
   say_dim "Tweak ${INSTALL_PREFIX}/.env — EVALUATION_PROVIDER, HF_TOKEN, GEMINI_*, … (STT_PROVIDER stays local.)"
