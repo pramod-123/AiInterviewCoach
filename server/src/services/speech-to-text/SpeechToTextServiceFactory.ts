@@ -31,7 +31,13 @@ export class SpeechToTextServiceFactory {
     if (mode === "remote") {
       const llm = OpenAiLlmClient.tryCreate(this.env);
       if (!llm) {
-        throw new Error("OPENAI_API_KEY is not set but STT_PROVIDER=remote.");
+        if (!this.env.OPENAI_API_KEY?.trim()) {
+          throw new Error("OPENAI_API_KEY is not set but STT_PROVIDER=remote.");
+        }
+        if (!this.env.OPENAI_MODEL_ID?.trim()) {
+          throw new Error("OPENAI_MODEL_ID is not set but STT_PROVIDER=remote.");
+        }
+        throw new Error("Could not create OpenAI client for remote STT.");
       }
       return LlmClientSpeechToTextService.create(llm, this.env);
     }

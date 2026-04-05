@@ -13,18 +13,6 @@ export function isOpenAiSemanticDiarizationEnabled(env: NodeJS.ProcessEnv = proc
   return env.DIARIZATION_PROVIDER?.trim().toLowerCase() === "openai_semantic";
 }
 
-function chatModel(env: NodeJS.ProcessEnv): string {
-  const m = env.OPENAI_DIARIZATION_MODEL?.trim();
-  if (m) {
-    return m;
-  }
-  const ev = env.OPENAI_EVAL_MODEL?.trim();
-  if (ev && ev.startsWith("gpt-")) {
-    return ev;
-  }
-  return "gpt-5.4";
-}
-
 type WhisperJsonSeg = { start?: number; end?: number; text?: string };
 
 type WhisperJson = { language?: string; segments?: WhisperJsonSeg[] };
@@ -44,6 +32,13 @@ export async function runOpenAiSemanticDiarization(params: {
   if (!client) {
     log.warn("OpenAI semantic diarization skipped (OPENAI_API_KEY not set).");
     return null;
+  }
+
+  const chatModelId = process.env.OPENAI_MODEL_ID?.trim();
+  if (!chatModelId) {
+    throw new Error(
+      "OPENAI semantic diarization requires OPENAI_MODEL_ID to be set in the environment.",
+    );
   }
 
   const exe = process.env.LOCAL_WHISPER_EXECUTABLE?.trim() || "whisper";
@@ -94,7 +89,6 @@ export async function runOpenAiSemanticDiarization(params: {
     })
     .join("\n");
 
-  const chatModelId = chatModel(process.env);
   let content: string;
   try {
     const completion = await client.chat.completions.create({

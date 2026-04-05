@@ -30,7 +30,7 @@ export function assertMandatoryVisionRoi(
 ): asserts visionOpenAiLlm is LlmClient {
   if (!visionOpenAiLlm) {
     throw new Error(
-      "Interview API requires vision ROI for editor detection. Set OPENAI_API_KEY.",
+      "Interview API requires vision ROI for editor detection. Set OPENAI_API_KEY and OPENAI_MODEL_ID.",
     );
   }
 }
@@ -47,7 +47,7 @@ export function assertMandatoryInterviewApiConfig(
 
   if (!speechAnalysis) {
     throw new Error(
-      "Interview API requires speech-to-text and evaluation. Set STT_PROVIDER=remote (default) or local (not none), OPENAI_API_KEY for remote Whisper, EVALUATION_PROVIDER=llm|single-agent, and LLM_PROVIDER=openai|anthropic with matching API key.",
+      "Interview API requires speech-to-text and evaluation. Set STT_PROVIDER=remote or local (not none), EVALUATION_PROVIDER=llm|single-agent, and LLM_PROVIDER=openai|anthropic with matching API keys. For remote STT or OpenAI LLM: OPENAI_API_KEY and OPENAI_MODEL_ID. For Anthropic LLM: ANTHROPIC_API_KEY and ANTHROPIC_MODEL_ID. Vision ROI requires OpenAI. Remote Whisper uses whisper-1 in code.",
     );
   }
 

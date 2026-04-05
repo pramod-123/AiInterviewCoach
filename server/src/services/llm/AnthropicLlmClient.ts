@@ -39,8 +39,10 @@ export class AnthropicLlmClient implements LlmClient {
     if (!key) {
       return null;
     }
-    const modelId =
-      env.ANTHROPIC_EVAL_MODEL?.trim() || "claude-opus-4-6";
+    const modelId = env.ANTHROPIC_MODEL_ID?.trim();
+    if (!modelId) {
+      return null;
+    }
     return new AnthropicLlmClient(key, modelId);
   }
 
