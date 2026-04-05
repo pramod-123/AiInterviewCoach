@@ -14,6 +14,14 @@ function normalizeOptionalEndSec(endTimeSec: number | null | undefined): number 
   return endTimeSec == null ? undefined : endTimeSec;
 }
 
+function normalizeOptionalSpeakerLabel(speakerLabel: string | null | undefined): string | undefined {
+  if (speakerLabel == null) {
+    return undefined;
+  }
+  const t = String(speakerLabel).trim();
+  return t === "" ? undefined : t;
+}
+
 /** Context for building the tool list on each single-agent evaluation run. */
 export type InterviewEvaluationAgentToolContext = {
   db: IAppDao;
@@ -157,9 +165,11 @@ The same ToolResult is also provided as the tool message artifact (structured) f
       async ({
         startTimeSec,
         endTimeSec,
+        speakerLabel,
       }: {
         startTimeSec: number;
         endTimeSec?: number | null;
+        speakerLabel?: string | null;
       }) =>
         this.wrapContentAndArtifact(
           await sessionTools.getTranscriptionInTimeRange(
@@ -167,6 +177,7 @@ The same ToolResult is also provided as the tool message artifact (structured) f
             jobId,
             startTimeSec,
             normalizeOptionalEndSec(endTimeSec),
+            normalizeOptionalSpeakerLabel(speakerLabel),
           ),
         ),
       {
@@ -176,11 +187,12 @@ The same ToolResult is also provided as the tool message artifact (structured) f
 Input:
 - startTimeSec (number): range start in seconds (0 = start of job transcript timeline).
 - endTimeSec (number, optional): range end in seconds; omit to treat end as +infinity (all speech from startTimeSec onward).
+- speakerLabel (string, optional): if set (non-empty), only segments whose diarized speaker label matches after trim, case-insensitive, with spaces collapsed to underscores (e.g. "interviewer" matches "INTERVIEWER"). Segments with null/unknown speaker are omitted when this is set.
 
-Behavior: a segment is included if its [startMs,endMs] overlaps [startTimeSec*1000, endTimeSec*1000] (or to end of time if endTimeSec omitted). Segments are ordered by start time.
+Behavior: a segment is included if its [startMs,endMs] overlaps [startTimeSec*1000, endTimeSec*1000] (or to end of time if endTimeSec omitted), then optional speaker filter applies. Segments are ordered by start time.
 
 Output: JSON string of ToolResult<{ segments: Array<{ startSec: number; endSec: number; text: string; speakerLabel: string | null; sequence: number }> }> (tool message content).
-- ok: true → segments may be empty if nothing overlaps the window.
+- ok: true → segments may be empty if nothing overlaps the window or matches the speaker filter.
 - ok: false → job not found, jobId does not match this live session, or invalid times.
 The same ToolResult is also provided as the tool message artifact (structured) for hosts that read it.`,
         schema: z.object({
@@ -190,6 +202,13 @@ The same ToolResult is also provided as the tool message artifact (structured) f
           endTimeSec: optionalEndTimeSecField().describe(
             "End of window; must be >= startTimeSec when a number. Omit or null for all speech from startTimeSec onward.",
           ),
+          speakerLabel: z
+            .string()
+            .nullable()
+            .optional()
+            .describe(
+              "Optional filter: only utterances with this speaker label (case-insensitive; null/unknown speakers excluded when set). Omit or null for all speakers.",
+            ),
         }),
         responseFormat: "content_and_artifact",
       },

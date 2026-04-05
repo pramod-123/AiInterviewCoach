@@ -133,7 +133,15 @@ export interface IAppDao {
   countSpeechUtterancesForJob(jobId: string): Promise<number>;
   deleteSpeechUtterancesByJobId(jobId: string): Promise<void>;
   createSpeechUtterances(data: SpeechUtteranceInsert[]): Promise<void>;
-  findSpeechUtterancesForJobOrdered(jobId: string): Promise<SpeechUtteranceItem[]>;
+  /**
+   * Ordered STT rows for a job. When `opts.speakerLabelNormalized` is set (e.g. `INTERVIEWER`),
+   * only rows whose stored label matches after the same normalization as SQL
+   * `UPPER(REPLACE(TRIM(speakerLabel), ' ', '_'))` are returned.
+   */
+  findSpeechUtterancesForJobOrdered(
+    jobId: string,
+    opts?: { speakerLabelNormalized?: string },
+  ): Promise<SpeechUtteranceItem[]>;
 
   /** Jobs with non-null `liveSessionId`, for CLI heuristics. */
   findJobsLinkedToLiveSessionsWithUtteranceCounts(): Promise<

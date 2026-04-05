@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { IAppDao } from "./IAppDao.js";
 import type {
   CodeSnapshotItem,
@@ -614,7 +614,33 @@ export class PrismaAppDao implements IAppDao {
     await this.db.speechUtterance.createMany({ data });
   }
 
-  async findSpeechUtterancesForJobOrdered(jobId: string): Promise<SpeechUtteranceItem[]> {
+  async findSpeechUtterancesForJobOrdered(
+    jobId: string,
+    opts?: { speakerLabelNormalized?: string },
+  ): Promise<SpeechUtteranceItem[]> {
+    const normalized = opts?.speakerLabelNormalized?.trim();
+    if (normalized) {
+      const rows = await this.db.$queryRaw<
+        {
+          id: string;
+          jobId: string;
+          startMs: number;
+          endMs: number;
+          text: string;
+          sequence: number;
+          speakerLabel: string | null;
+        }[]
+      >(Prisma.sql`
+        SELECT id, jobId, startMs, endMs, text, "sequence", speakerLabel
+        FROM speech_utterances
+        WHERE jobId = ${jobId}
+          AND speakerLabel IS NOT NULL
+          AND TRIM(speakerLabel) != ''
+          AND UPPER(REPLACE(TRIM(speakerLabel), ' ', '_')) = ${normalized}
+        ORDER BY startMs ASC, "sequence" ASC
+      `);
+      return toSpeechItems(rows);
+    }
     const rows = await this.db.speechUtterance.findMany({
       where: { jobId },
       orderBy: [{ startMs: "asc" }, { sequence: "asc" }],

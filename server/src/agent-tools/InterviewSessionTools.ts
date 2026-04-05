@@ -61,12 +61,14 @@ export interface IInterviewSessionTools {
   /**
    * STT segments overlapping the wall-clock interval on the job timeline (seconds).
    * `jobId` must be the post-process job for this `sessionId` (`Job.liveSessionId`).
+   * When `speakerLabel` is set (non-empty after trim), only segments whose stored label matches (case-insensitive) are returned; segments with null/unknown speaker are excluded.
    */
   getTranscriptionInTimeRange(
     sessionId: string,
     jobId: string,
     startTimeSec: number,
     endTimeSec?: number,
+    speakerLabel?: string | null,
   ): Promise<ToolResult<TranscriptionInTimeRange>>;
 }
 
@@ -78,6 +80,10 @@ function sortLiveSnapshots<T extends { offsetSeconds: number; sequence: number }
   return [...rows].sort((a, b) =>
     a.offsetSeconds !== b.offsetSeconds ? a.offsetSeconds - b.offsetSeconds : a.sequence - b.sequence,
   );
+}
+
+function normalizeSpeakerLabelForMatch(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\s+/g, "_");
 }
 
 /** DAO-backed {@link IInterviewSessionTools}. */
@@ -203,6 +209,7 @@ export class DaoInterviewSessionTools implements IInterviewSessionTools {
     jobId: string,
     startTimeSec: number,
     endTimeSec?: number,
+    speakerLabel?: string | null,
   ): Promise<ToolResult<TranscriptionInTimeRange>> {
     if (!Number.isFinite(startTimeSec) || startTimeSec < 0) {
       return toolErr("startTimeSec must be a non-negative finite number.");
@@ -217,7 +224,14 @@ export class DaoInterviewSessionTools implements IInterviewSessionTools {
     if (job.liveSessionId !== sessionId) {
       return toolErr("jobId does not belong to this session (liveSessionId mismatch).");
     }
-    const utterances = await this.db.findSpeechUtterancesForJobOrdered(jobId);
+    const speakerFilter =
+      speakerLabel != null && String(speakerLabel).trim() !== ""
+        ? normalizeSpeakerLabelForMatch(String(speakerLabel))
+        : null;
+    const utterances = await this.db.findSpeechUtterancesForJobOrdered(
+      jobId,
+      speakerFilter != null ? { speakerLabelNormalized: speakerFilter } : undefined,
+    );
     const rangeStartMs = Math.round(startTimeSec * 1000);
     const rangeEndMs =
       endTimeSec === undefined ? Number.MAX_SAFE_INTEGER : Math.round(endTimeSec * 1000);

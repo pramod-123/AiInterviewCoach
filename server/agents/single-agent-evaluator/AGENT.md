@@ -159,6 +159,7 @@ Use it to determine:
 - whether a saved question exists
 - whether there is linked post-process data
 - **`postProcessTranscriptEndSec`** (when not null): last second of stored STT on the job timeline — do **not** scan `get_transcription_in_timerange` in 60s steps far past this value; short sessions need fewer windows
+- **`get_transcription_in_timerange`** accepts an optional **`speakerLabel`** argument: when set, only utterances with that diarized label are returned (case-insensitive); null/unknown-speaker rows are dropped when filtering
 - what metadata exists for this interview
 - whether the session appears complete enough for evaluation
 
