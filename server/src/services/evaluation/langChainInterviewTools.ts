@@ -36,6 +36,8 @@ export type InterviewEvaluationAgentToolsFactory = (
 /**
  * LangChain tools backed by {@link DaoInterviewSessionTools}. `sessionId` and `jobId` are fixed at
  * construction so the model cannot query arbitrary sessions.
+ *
+ * Tool times are **seconds** from recording start (second granularity). Convert to rubric `timestamp_ms` as `Math.round(seconds * 1000)` when citing evidence.
  */
 export class LangChainInterviewSessionToolPack {
   private readonly sessionTools: DaoInterviewSessionTools;
@@ -102,11 +104,12 @@ The same ToolResult is also provided as the tool message artifact (structured) f
 Input:
 - timestampSec (number): seconds from the start of tab capture, aligned with live code snapshot offsetSeconds and the merged recording / STT timeline.
 
-Behavior: returns the latest snapshot whose offsetSeconds <= timestampSec. If timestampSec is before the first snapshot, returns the earliest snapshot and marks clampedToEarliest.
+Behavior: returns the latest snapshot whose offsetSeconds <= timestampSec (tie-break: higher sequence). Sessions are expected to include a capture at t≈0 so a row exists for typical queries.
 
 Output: JSON string of ToolResult<{ text: string; offsetSeconds: number; clampedToEarliest: boolean }> (tool message content).
-- ok: true → data.text is full editor source at that moment; data.offsetSeconds is the snapshot time used; data.clampedToEarliest true if timestamp was before first capture.
+- ok: true → data.text is full editor source at that moment; data.offsetSeconds is the snapshot time used; data.clampedToEarliest is always false in normal data.
 - ok: false → e.g. no snapshots, invalid timestamp, or session missing.
+For rubric evidence timestamp_ms, use Math.round(offsetSeconds * 1000) (or Math.round(timestampSec * 1000) when that was the query time).
 The same ToolResult is also provided as the tool message artifact (structured) for hosts that read it.`,
         schema: z.object({
           timestampSec: z
@@ -148,6 +151,7 @@ Output: JSON string of ToolResult<{ snapshots: Array<{ timeStampSec: number; tex
 - ok: true → snapshots ordered oldest-first; compare consecutive entries yourself if you need how code changed.
 - ok: true with empty range → snapshots [].
 - ok: false → e.g. no snapshots in session, invalid range, or session missing.
+For rubric timestamp_ms on code, use Math.round(timeStampSec * 1000).
 The same ToolResult is also provided as the tool message artifact (structured) for hosts that read it.`,
         schema: z.object({
           startTimeSec: z
@@ -189,11 +193,12 @@ Input:
 - endTimeSec (number, optional): range end in seconds; omit to treat end as +infinity (all speech from startTimeSec onward).
 - speakerLabel (string, optional): if set (non-empty), only segments whose diarized speaker label matches after trim, case-insensitive, with spaces collapsed to underscores (e.g. "interviewer" matches "INTERVIEWER"). Segments with null/unknown speaker are omitted when this is set.
 
-Behavior: a segment is included if its [startMs,endMs] overlaps [startTimeSec*1000, endTimeSec*1000] (or to end of time if endTimeSec omitted), then optional speaker filter applies. Segments are ordered by start time.
+Behavior: a segment is included if its [startSec,endSec] overlaps [startTimeSec, endTimeSec] (or to end of time if endTimeSec omitted), then optional speaker filter applies. Segments are ordered by start time.
 
 Output: JSON string of ToolResult<{ segments: Array<{ startSec: number; endSec: number; text: string; speakerLabel: string | null; sequence: number }> }> (tool message content).
 - ok: true → segments may be empty if nothing overlaps the window or matches the speaker filter.
 - ok: false → job not found, jobId does not match this live session, or invalid times.
+For rubric timestamp_ms on speech, use a representative second within the segment (e.g. Math.round(startSec * 1000)) — second-level granularity is sufficient.
 The same ToolResult is also provided as the tool message artifact (structured) for hosts that read it.`,
         schema: z.object({
           startTimeSec: z

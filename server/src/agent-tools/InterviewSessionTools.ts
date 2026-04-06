@@ -11,7 +11,7 @@ export type GetCodeAtData = {
   text: string;
   /** Offset of the snapshot used (seconds from recording start). */
   offsetSeconds: number;
-  /** True when `timestampSec` was before the first snapshot; first snapshot code is returned. */
+  /** Reserved; always false when a snapshot exists at t≈0 and `getCodeAt` uses DB `lte` + `orderBy` desc. */
   clampedToEarliest: boolean;
 };
 
@@ -31,7 +31,7 @@ export type SessionMetadataData = {
   postProcessJobId: string | null;
   /**
    * End of last STT utterance on the job timeline (seconds). Null if no linked job or no utterances.
-   * Agents should not scan transcript windows beyond this (add small padding if needed).
+   * Agents should not scan transcript windows far beyond this (add small padding if needed).
    */
   postProcessTranscriptEndSec: number | null;
   videoChunkCount: number;
@@ -40,13 +40,15 @@ export type SessionMetadataData = {
 
 /**
  * Read-only tools for interview/live-session context (editor snapshots, question, STT by job).
- * Intended for wiring into LLM agents / function-calling later.
+ *
+ * **Time units:** tool time arguments and numeric times in tool payloads (except ISO dates on session metadata)
+ * use **seconds** from recording start (second-level granularity). Map to rubric `timestamp_ms` as `seconds * 1000`.
  */
 export interface IInterviewSessionTools {
   getQuestion(sessionId: string): Promise<ToolResult<GetQuestionData>>;
   /** Status, flags, counts, and linked job id for the live session (no question body). */
   getSessionMetadata(sessionId: string): Promise<ToolResult<SessionMetadataData>>;
-  /** `timestampSec` aligns with {@link LiveCodeSnapshot.offsetSeconds} (seconds since tab capture start). */
+  /** `timestampSec` aligns with live code snapshot `offsetSeconds` (seconds since tab capture start). */
   getCodeAt(sessionId: string, timestampSec: number): Promise<ToolResult<GetCodeAtData>>;
   /**
    * Ordered full editor snapshots between times (seconds on the same timeline as `getCodeAt`).
@@ -58,7 +60,7 @@ export interface IInterviewSessionTools {
     endTimeSec?: number,
   ): Promise<ToolResult<CodeProgressionInTimeRange>>;
   /**
-   * STT segments overlapping the wall-clock interval on the job timeline (seconds).
+   * STT segments overlapping the interval on the job timeline (seconds).
    * `jobId` must be the post-process job for this `sessionId` (`Job.liveSessionId`).
    * When `speakerLabel` is set (non-empty after trim), only segments whose stored label matches (case-insensitive) are returned; segments with null/unknown speaker are excluded.
    */
@@ -127,29 +129,16 @@ export class DaoInterviewSessionTools implements IInterviewSessionTools {
     if (!session) {
       return toolErr("Session not found.");
     }
-    const snaps = sortLiveSnapshots(await this.db.findLiveCodeSnapshotsForSession(sessionId));
-    if (snaps.length === 0) {
+    const row = await this.db.findLiveCodeSnapshotAtOrBefore(sessionId, timestampSec);
+    if (!row) {
       return toolErr("No code snapshots for this session.");
-    }
-    let clampedToEarliest = false;
-    let chosen = snaps[0]!;
-    if (timestampSec < chosen.offsetSeconds) {
-      clampedToEarliest = true;
-    } else {
-      for (const s of snaps) {
-        if (s.offsetSeconds <= timestampSec) {
-          chosen = s;
-        } else {
-          break;
-        }
-      }
     }
     return {
       ok: true,
       data: {
-        text: chosen.code,
-        offsetSeconds: chosen.offsetSeconds,
-        clampedToEarliest,
+        text: row.code,
+        offsetSeconds: row.offsetSeconds,
+        clampedToEarliest: false,
       },
     };
   }

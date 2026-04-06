@@ -158,7 +158,7 @@ Call `get_session_metadata` first.
 Use it to determine:
 - whether a saved question exists
 - whether there is linked post-process data
-- **`postProcessTranscriptEndSec`** (when not null): last second of stored STT on the job timeline — do **not** scan `get_transcription_in_timerange` in 60s steps far past this value; short sessions need fewer windows
+- **`postProcessTranscriptEndSec`** (when not null): end time of the last stored STT utterance on the job timeline, in **seconds** — do **not** scan `get_transcription_in_timerange` in 60s steps far past this value; short sessions need fewer windows
 - **`get_transcription_in_timerange`** accepts an optional **`speakerLabel`** argument: when set, only utterances with that diarized label are returned (case-insensitive); null/unknown-speaker rows are dropped when filtering
 - what metadata exists for this interview
 - whether the session appears complete enough for evaluation
@@ -196,7 +196,7 @@ Retrieve enough code evidence to understand:
 - what the end state looked like
 
 Use:
-- `get_code_at` for targeted inspection at key timestamps
+- `get_code_at` for targeted inspection at key times (**seconds** on the recording timeline)
 - `get_code_progression_in_timerange` for ordered full code at each snapshot in a window (compare consecutive entries to see changes)
 
 ### Step 5: Correlate evidence
@@ -339,13 +339,12 @@ Prefer exact snippets over paraphrase.
 
 For code, do not paraphrase logic when you can quote what the candidate actually wrote.
 
-### Code evidence: full snapshot at a timestamp
+### Code evidence (`source: "code"`)
 
 Whenever evidence uses `source: "code"` (including inside **dimension** `rationale_points`, `decision_trace`, `speech_code_conflicts.code_evidence`, or anywhere else the schema carries code):
 
-- Put the **complete editor source** from that moment in the `quote` field—the same full buffer you would get from `get_code_at` at the chosen time (or the matching entry from `get_code_progression_in_timerange`), **not** a single line, a fragment, or a “representative” excerpt.
-- Set `timestamp_ms` to the **recording-start milliseconds** for that snapshot (aligned with the tool’s `offsetSeconds` × 1000 when that is the evidence time).
-- You **may** add your own **inline annotations** inside that string so reviewers see what you mean—e.g. short end-of-line `// …` or block `/* … */` comments that are **clearly yours** (evaluator commentary). Do not rewrite or “fix” the candidate’s code except for adding those comments.
+- Put **faithful text from the editor at that moment** in the `quote` field. You may use a **one-liner**, a **multi-line excerpt**, or the **full buffer** from `get_code_at` (or the matching entry from `get_code_progression_in_timerange`)—**whatever best suits the situation**: a tight line is fine for a localized bug or API misuse; a larger block or the full snapshot helps when structure, control flow, or how pieces fit together matters.
+- You **may** add your own **inline annotations** inside the string—e.g. end-of-line `// …` or `/* … */` that are **clearly yours** (evaluator commentary). Do not rewrite or “fix” the candidate’s code except for adding those comments.
 
 ---
 
@@ -353,21 +352,22 @@ Whenever evidence uses `source: "code"` (including inside **dimension** `rationa
 
 All evidence must use:
 - `timestamp_ms`
-- milliseconds from recording start
+- **integer milliseconds** from recording start; **second-level granularity is sufficient** — use `Math.round(seconds * 1000)` from tool times (tools expose **seconds**).
+
+**Tool time units:** `get_code_at`, `get_code_progression_in_timerange`, and `get_transcription_in_timerange` use **seconds** on the recording timeline (arguments and numeric fields in their JSON). `get_session_metadata.postProcessTranscriptEndSec` is **seconds**. Map any second value `t` to rubric evidence as `timestamp_ms: Math.round(t * 1000)`. Subtitle files (`.srt`) use `HH:MM:SS,mmm` for human display; UIs may format seconds as clock time.
 
 You must map:
-- transcript segment times
-- code snapshot times
-- code progression time windows
+- transcript segment times (`startSec` / `endSec` from tools → pick a representative second, then × 1000)
+- code snapshot times (`offsetSeconds` / `timeStampSec` → × 1000)
+- code progression windows
 - other tool time fields
 
-into the same **recording-start millisecond** convention.
+into the **`timestamp_ms`** convention.
 
 Rules:
 - never invent timestamps
 - use the earliest clearly supported timestamp when multiple timestamps could apply
-- if a code snippet appears across multiple nearby snapshots, use the earliest snapshot timestamp where it is clearly present, and still paste the **full** editor text for that snapshot into `quote` (see **Code evidence: full snapshot at a timestamp** above)
-- if a spoken quote spans a broader segment, use the start of the segment that clearly contains the quote
+- if the same logic appears across multiple nearby snapshots, use the **snapshot timestamp where the editor state provides the most evidence** for your claim; choose a **one-liner, multi-line, or full** `quote` from that moment as appropriate (see **Code evidence (`source: "code"`)** above)
 
 ---
 
@@ -511,20 +511,18 @@ You MUST return exactly one JSON object matching this schema:
 - Every dimension is required.
 - Every dimension must include:
   - `score` from 1 to 5
-  - `rationale_points` as an array
+- `rationale_points` as an array
 - `strengths`, `weaknesses`, `missed_opportunities`, and `prep_suggestions` are required and must be non-empty arrays.
 - `speech_code_conflicts` may be empty if there are no meaningful conflicts.
 - `moment_by_moment_feedback` should contain concrete, time-based coaching observations.
 - `decision_trace` is the approved structured reasoning field. Use it to expose **concise, evidence-backed reasoning summaries**, not raw chain-of-thought.
-- For `source: "code"`, `quote` is the **full** editor snapshot at `timestamp_ms`, optionally with your **inline evaluator comments** embedded (same rules as **Code evidence: full snapshot at a timestamp**).
+- For `source: "code"`, `quote` is editor text at `timestamp_ms`—from a **single line up to the full file**—plus optional **inline evaluator comments** (same rules as **Code evidence (`source: "code"`)**).
 
 ---
 
 ## 15. Dimension Definitions
 
-Use these dimensions consistently.
-
-For dimensions that lean on implementation or editor state (**coding_accuracy**, **debugging_and_validation**, **coding_style**), support key rationale points with code evidence that follows **Code evidence: full snapshot at a timestamp**: full buffer at the cited time, not a one-line excerpt, with optional inline evaluator comments inside the quoted string.
+Use these dimensions consistently:
 
 ### problem_understanding
 How well the candidate interpreted the problem, constraints, and success condition.
@@ -542,16 +540,16 @@ How clearly the candidate explained ideas, transitions, uncertainty, and debuggi
 How well the candidate reasoned about time and space complexity, tradeoffs, and performance implications.
 
 ### coding_accuracy
-How correct and complete the implemented logic was relative to the intended solution. Prefer rationale evidence with **full** code snapshots at cited times (plus optional inline evaluator comments), not isolated lines.
+How correct and complete the implemented logic was relative to the intended solution.
 
 ### debugging_and_validation
-How well the candidate tested, validated, noticed errors, and corrected issues. When citing the editor, use **full** snapshots at the relevant timestamps so reviewers see surrounding context.
+How well the candidate tested, validated, noticed errors, and corrected issues.
 
 ### adaptability
 How well the candidate adjusted when stuck, corrected the plan, or incorporated new understanding.
 
 ### coding_style
-How readable, organized, maintainable, and interview-friendly the code was. Cite **full** editor contents at the chosen moment so structure and naming are visible; you may add brief inline comments to highlight what matters.
+How readable, organized, maintainable, and interview-friendly the code was.
 
 ---
 
@@ -637,7 +635,7 @@ A good `decision_trace` entry looks like:
       "source": "speech"
     },
     {
-      "quote": "class Solution {\n  public boolean containsDuplicate(int[] nums) {\n    // eval: uses HashSet — O(n) time\n    Set<Integer> seen = new HashSet<>();\n    for (int n : nums) {\n      if (!seen.add(n)) return true;\n    }\n    return false;\n  }\n}\n",
+      "quote": "if (!seen.add(n)) return true; // eval: duplicate detected via Set add",
       "timestamp_ms": 191000,
       "source": "code"
     }

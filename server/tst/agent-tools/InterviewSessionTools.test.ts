@@ -97,14 +97,13 @@ describe("DaoInterviewSessionTools", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("getCodeAt picks last snapshot at or before timestamp", async () => {
+  it("getCodeAt delegates to findLiveCodeSnapshotAtOrBefore", async () => {
+    const findLiveCodeSnapshotAtOrBefore = vi
+      .fn()
+      .mockResolvedValue({ code: "b", offsetSeconds: 10 });
     const db = mockDb({
       findLiveSessionIdForTools: vi.fn().mockResolvedValue({ id: "s1" }),
-      findLiveCodeSnapshotsForSession: vi.fn().mockResolvedValue([
-        { code: "a", offsetSeconds: 0, sequence: 0 },
-        { code: "b", offsetSeconds: 10, sequence: 1 },
-        { code: "c", offsetSeconds: 20, sequence: 2 },
-      ]),
+      findLiveCodeSnapshotAtOrBefore,
     });
     const tools = new DaoInterviewSessionTools(db);
     const r = await tools.getCodeAt("s1", 15);
@@ -112,21 +111,32 @@ describe("DaoInterviewSessionTools", () => {
       ok: true,
       data: { text: "b", offsetSeconds: 10, clampedToEarliest: false },
     });
+    expect(findLiveCodeSnapshotAtOrBefore).toHaveBeenCalledWith("s1", 15);
   });
 
-  it("getCodeAt clamps to earliest when timestamp before first snapshot", async () => {
+  it("getCodeAt early timestamp returns t=0 row from DAO (invariant: snapshot at t≈0)", async () => {
     const db = mockDb({
       findLiveSessionIdForTools: vi.fn().mockResolvedValue({ id: "s1" }),
-      findLiveCodeSnapshotsForSession: vi.fn().mockResolvedValue([
-        { code: "first", offsetSeconds: 5, sequence: 0 },
-      ]),
+      findLiveCodeSnapshotAtOrBefore: vi
+        .fn()
+        .mockResolvedValue({ code: "initial", offsetSeconds: 0 }),
     });
     const tools = new DaoInterviewSessionTools(db);
-    const r = await tools.getCodeAt("s1", 1);
+    const r = await tools.getCodeAt("s1", 2);
     expect(r).toEqual({
       ok: true,
-      data: { text: "first", offsetSeconds: 5, clampedToEarliest: true },
+      data: { text: "initial", offsetSeconds: 0, clampedToEarliest: false },
     });
+  });
+
+  it("getCodeAt errors when no snapshot row matches (e.g. empty session)", async () => {
+    const db = mockDb({
+      findLiveSessionIdForTools: vi.fn().mockResolvedValue({ id: "s1" }),
+      findLiveCodeSnapshotAtOrBefore: vi.fn().mockResolvedValue(null),
+    });
+    const tools = new DaoInterviewSessionTools(db);
+    const r = await tools.getCodeAt("s1", 0);
+    expect(r.ok).toBe(false);
   });
 
   it("getCodeProgressionInTimeRange returns full text per snapshot in window", async () => {

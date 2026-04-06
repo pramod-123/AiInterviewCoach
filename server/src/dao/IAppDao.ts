@@ -94,7 +94,7 @@ export interface IAppDao {
     updatedAt: Date;
     hasQuestionSaved: boolean;
     postProcessJobId: string | null;
-    /** Seconds on job STT timeline: end of last stored utterance for linked job; null if no job or no utterances. */
+    /** End time of the last persisted STT utterance on the job timeline (seconds); null if no job or no utterances. */
     postProcessTranscriptEndSec: number | null;
     videoChunkCount: number;
     liveCodeSnapshotCount: number;
@@ -119,6 +119,14 @@ export interface IAppDao {
   findLiveCodeSnapshotsForSession(sessionId: string): Promise<
     { code: string; offsetSeconds: number; sequence: number }[]
   >;
+  /**
+   * Latest live editor snapshot at or before `timestampSec` (`offsetSeconds` desc, then `sequence` desc).
+   * With a snapshot at t≈0, a row exists for typical `timestampSec >= 0` when the session has data.
+   */
+  findLiveCodeSnapshotAtOrBefore(
+    sessionId: string,
+    timestampSec: number,
+  ): Promise<{ code: string; offsetSeconds: number } | null>;
   countLiveCodeSnapshotsForSession(sessionId: string): Promise<number>;
   aggregateMaxLiveCodeSnapshotSequence(sessionId: string): Promise<number>;
   createLiveCodeSnapshot(params: {

@@ -577,6 +577,18 @@ export class PrismaAppDao implements IAppDao {
     });
   }
 
+  async findLiveCodeSnapshotAtOrBefore(
+    sessionId: string,
+    timestampSec: number,
+  ): Promise<{ code: string; offsetSeconds: number } | null> {
+    const row = await this.db.liveCodeSnapshot.findFirst({
+      where: { sessionId, offsetSeconds: { lte: timestampSec } },
+      orderBy: [{ offsetSeconds: "desc" }, { sequence: "desc" }],
+      select: { code: true, offsetSeconds: true },
+    });
+    return row ?? null;
+  }
+
   async countLiveCodeSnapshotsForSession(sessionId: string): Promise<number> {
     return this.db.liveCodeSnapshot.count({ where: { sessionId } });
   }
