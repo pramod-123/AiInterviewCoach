@@ -337,7 +337,15 @@ Do not rely on generic impressions.
 
 Prefer exact snippets over paraphrase.
 
-For code, do not paraphrase logic when an exact code snippet can be quoted.
+For code, do not paraphrase logic when you can quote what the candidate actually wrote.
+
+### Code evidence: full snapshot at a timestamp
+
+Whenever evidence uses `source: "code"` (including inside **dimension** `rationale_points`, `decision_trace`, `speech_code_conflicts.code_evidence`, or anywhere else the schema carries code):
+
+- Put the **complete editor source** from that moment in the `quote` field—the same full buffer you would get from `get_code_at` at the chosen time (or the matching entry from `get_code_progression_in_timerange`), **not** a single line, a fragment, or a “representative” excerpt.
+- Set `timestamp_ms` to the **recording-start milliseconds** for that snapshot (aligned with the tool’s `offsetSeconds` × 1000 when that is the evidence time).
+- You **may** add your own **inline annotations** inside that string so reviewers see what you mean—e.g. short end-of-line `// …` or block `/* … */` comments that are **clearly yours** (evaluator commentary). Do not rewrite or “fix” the candidate’s code except for adding those comments.
 
 ---
 
@@ -358,7 +366,7 @@ into the same **recording-start millisecond** convention.
 Rules:
 - never invent timestamps
 - use the earliest clearly supported timestamp when multiple timestamps could apply
-- if a code snippet appears across multiple nearby snapshots, use the earliest snapshot timestamp where it is clearly present
+- if a code snippet appears across multiple nearby snapshots, use the earliest snapshot timestamp where it is clearly present, and still paste the **full** editor text for that snapshot into `quote` (see **Code evidence: full snapshot at a timestamp** above)
 - if a spoken quote spans a broader segment, use the start of the segment that clearly contains the quote
 
 ---
@@ -508,12 +516,15 @@ You MUST return exactly one JSON object matching this schema:
 - `speech_code_conflicts` may be empty if there are no meaningful conflicts.
 - `moment_by_moment_feedback` should contain concrete, time-based coaching observations.
 - `decision_trace` is the approved structured reasoning field. Use it to expose **concise, evidence-backed reasoning summaries**, not raw chain-of-thought.
+- For `source: "code"`, `quote` is the **full** editor snapshot at `timestamp_ms`, optionally with your **inline evaluator comments** embedded (same rules as **Code evidence: full snapshot at a timestamp**).
 
 ---
 
 ## 15. Dimension Definitions
 
-Use these dimensions consistently:
+Use these dimensions consistently.
+
+For dimensions that lean on implementation or editor state (**coding_accuracy**, **debugging_and_validation**, **coding_style**), support key rationale points with code evidence that follows **Code evidence: full snapshot at a timestamp**: full buffer at the cited time, not a one-line excerpt, with optional inline evaluator comments inside the quoted string.
 
 ### problem_understanding
 How well the candidate interpreted the problem, constraints, and success condition.
@@ -531,16 +542,16 @@ How clearly the candidate explained ideas, transitions, uncertainty, and debuggi
 How well the candidate reasoned about time and space complexity, tradeoffs, and performance implications.
 
 ### coding_accuracy
-How correct and complete the implemented logic was relative to the intended solution.
+How correct and complete the implemented logic was relative to the intended solution. Prefer rationale evidence with **full** code snapshots at cited times (plus optional inline evaluator comments), not isolated lines.
 
 ### debugging_and_validation
-How well the candidate tested, validated, noticed errors, and corrected issues.
+How well the candidate tested, validated, noticed errors, and corrected issues. When citing the editor, use **full** snapshots at the relevant timestamps so reviewers see surrounding context.
 
 ### adaptability
 How well the candidate adjusted when stuck, corrected the plan, or incorporated new understanding.
 
 ### coding_style
-How readable, organized, maintainable, and interview-friendly the code was.
+How readable, organized, maintainable, and interview-friendly the code was. Cite **full** editor contents at the chosen moment so structure and naming are visible; you may add brief inline comments to highlight what matters.
 
 ---
 
@@ -626,7 +637,7 @@ A good `decision_trace` entry looks like:
       "source": "speech"
     },
     {
-      "quote": "if (map.containsKey(nums[i])) return true;",
+      "quote": "class Solution {\n  public boolean containsDuplicate(int[] nums) {\n    // eval: uses HashSet — O(n) time\n    Set<Integer> seen = new HashSet<>();\n    for (int n : nums) {\n      if (!seen.add(n)) return true;\n    }\n    return false;\n  }\n}\n",
       "timestamp_ms": 191000,
       "source": "code"
     }
