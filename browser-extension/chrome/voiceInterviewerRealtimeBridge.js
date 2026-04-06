@@ -78,8 +78,9 @@
    * @param {string} mimeType
    * @param {AudioContext} ctx
    * @param {{ nextTime: number }} sched
+   * @param {AudioBufferSourceNode[] | null} activeSources when set, nodes are tracked for interrupt/stop
    */
-  function schedulePcmPlayback(base64, mimeType, ctx, sched) {
+  function schedulePcmPlayback(base64, mimeType, ctx, sched, activeSources) {
     const rateMatch = /rate=(\d+)/i.exec(mimeType || "");
     const sampleRate = rateMatch ? Number.parseInt(rateMatch[1], 10) : 24000;
     let binary;
@@ -106,6 +107,15 @@
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
+    if (activeSources) {
+      activeSources.push(src);
+      src.onended = () => {
+        const idx = activeSources.indexOf(src);
+        if (idx >= 0) {
+          activeSources.splice(idx, 1);
+        }
+      };
+    }
     const now = ctx.currentTime;
     const startAt = Math.max(sched.nextTime, now + 0.02);
     src.start(startAt);
@@ -151,6 +161,8 @@
     /** @type {AudioContext | null} */
     let playbackCtx = null;
     const playSched = { nextTime: 0 };
+    /** @type {AudioBufferSourceNode[]} Scheduled model audio; cleared on interrupt or teardown. */
+    const activePlaybackSources = [];
     /** @type {ReturnType<typeof setInterval> | null} */
     let pingId = null;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -200,7 +212,48 @@
       }
     }
 
+    /**
+     * Gemini Live: on interruption, stop playback immediately and drop queued chunks
+     * @see https://ai.google.dev/gemini-api/docs/live-api/capabilities (Voice Activity Detection)
+     */
+    function stopModelPlaybackImmediate() {
+      for (let i = activePlaybackSources.length - 1; i >= 0; i--) {
+        const src = activePlaybackSources[i];
+        try {
+          src.stop(0);
+        } catch {
+          /* already stopped or not started */
+        }
+        try {
+          src.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      activePlaybackSources.length = 0;
+      if (playbackCtx) {
+        playSched.nextTime = playbackCtx.currentTime;
+      } else {
+        playSched.nextTime = 0;
+      }
+      setSpeakingUi(false);
+    }
+
     function cleanupPlayback() {
+      for (let i = activePlaybackSources.length - 1; i >= 0; i--) {
+        const src = activePlaybackSources[i];
+        try {
+          src.stop(0);
+        } catch {
+          /* ignore */
+        }
+        try {
+          src.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      activePlaybackSources.length = 0;
       if (playbackCtx) {
         void playbackCtx.close().catch(() => {});
         playbackCtx = null;
@@ -374,6 +427,7 @@
           log(`Voice interviewer: ready (model ${p.model || "?"})`);
           onStatus("ready");
         } else if (t === "reconnecting") {
+          stopModelPlaybackImmediate();
           lastEditorPayloadSent = null;
           const ms = typeof p.delayMs === "number" ? p.delayMs : 0;
           const uc = p.upstreamCode != null ? String(p.upstreamCode) : "";
@@ -382,9 +436,17 @@
             `Voice interviewer: Google Live session ended${uc ? ` [${uc}]` : ""}${ur} — reconnecting in ~${ms}ms`,
           );
           onStatus("connecting");
+        } else if (t === "interrupted" && p.value === true) {
+          stopModelPlaybackImmediate();
         } else if (t === "modelAudio" && typeof p.data === "string" && playbackCtx) {
           setSpeakingUi(true);
-          schedulePcmPlayback(p.data, typeof p.mimeType === "string" ? p.mimeType : "", playbackCtx, playSched);
+          schedulePcmPlayback(
+            p.data,
+            typeof p.mimeType === "string" ? p.mimeType : "",
+            playbackCtx,
+            playSched,
+            activePlaybackSources,
+          );
         } else if (t === "modelText" && typeof p.text === "string" && p.text.trim()) {
           log(`Interviewer: ${p.text.trim().slice(0, 200)}${p.text.length > 200 ? "…" : ""}`);
         } else if (t === "inputTranscription" && typeof p.text === "string" && p.text.trim()) {
