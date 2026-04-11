@@ -165,22 +165,8 @@ install_try_logo_png() {
   return 1
 }
 
-# Mic + code brackets + tie (ASCII); always shown when stdout is a TTY.
-install_logo_ascii() {
-  if [[ ! -t 1 ]]; then
-    return 0
-  fi
-  say ""
-  printf '%b              ╭──────────╮              %s< >%s%b\n' "${C_BAR}" "${C_ACCENT_B}" "${C_BAR}" "${C_RST}"
-  printf '%b              │    ●     │%b\n' "${C_BAR}" "${C_RST}"
-  printf '%b              │   ───    │%b\n' "${C_BAR}" "${C_RST}"
-  printf '%b              │    ╲╱    │%b\n' "${C_BAR}" "${C_RST}"
-  printf '%b              ╰────┬─────╯%b\n' "${C_BAR}" "${C_RST}"
-  say ""
-}
-
 install_welcome() {
-  install_try_logo_png || install_logo_ascii
+  install_try_logo_png || true
   say ""
   printf '%b╔══════════════════════════════════════════════════════════════╗%b\n' "${C_ACCENT_B}" "${C_RST}"
   printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_RST}${C_BOLD}" "Ai Interview Copilot" "${C_ACCENT_B}" "${C_RST}"
