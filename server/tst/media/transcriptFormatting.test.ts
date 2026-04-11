@@ -6,7 +6,7 @@ import {
   buildFinalTranscriptJson,
   finalTranscriptToEvaluationTimeline,
   stringifyInterviewTimelineForEvaluation,
-} from "../../src/video-pipeline/transcriptFormatting.js";
+} from "../../src/media/transcriptFormatting.js";
 
 function stt(
   segments: Array<{ start: number; end: number; text: string }>,

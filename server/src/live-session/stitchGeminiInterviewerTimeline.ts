@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { IAppDao } from "../dao/IAppDao.js";
 import type { LiveVoiceRealtimeAudioChunkItem } from "../dao/dto.js";
-import { FfmpegRunner } from "../video-pipeline/ffmpegExtract.js";
+import { FfmpegRunner } from "../media/ffmpegExtract.js";
 import { pcmS16leMonoDurationMs, readVoiceRealtimeAudioBridgeMeta, type VoiceRealtimeAudioChunkStitchRow } from "./geminiLiveAudioCapture.js";
 
 /** DB page size for stitch (avoids a single unbounded `findMany`). */

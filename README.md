@@ -121,14 +121,15 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## Server design (overview)
 
-The **Node/TypeScript** service under [`server/`](./server/) runs **Fastify** + **Prisma (SQLite)**, requires **ffmpeg**, **ffprobe**, and **tesseract** on `PATH`, and uses **OpenAI** (and optionally **Anthropic**) for STT, vision ROI, and rubric evaluation.
+The **Node/TypeScript** service under [`server/`](./server/) runs **Fastify** + **Prisma (SQLite)**, requires **ffmpeg** and **ffprobe** on `PATH`, and uses **OpenAI** (and optionally **Anthropic**) for STT and rubric evaluation.
 
 **Data flow (conceptual)**
 
-1. **Classic upload** — `POST /api/interviews` with a **video** file → **`VideoJobProcessor`** → **`E2eInterviewPipeline`** (demux, LLM editor ROI, crop, deduped frames, Tesseract, Whisper, evaluation) → **`Job`** / **`Result`** / SQLite **`SpeechUtterance`** (STT) + **`CodeSnapshot`** (`VIDEO_OCR`); artifacts under **`data/uploads/<jobId>/`**.
-2. **Live LeetCode session** — extension → **`POST /api/live-sessions`** + chunk/snapshot routes → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** (`liveSessionId`), extracts **WAV**, runs **Whisper + rubric** with **extension `LiveCodeSnapshot`** rows as the code timeline (**no** ROI, **no** frame OCR) → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`); artifacts under **`data/live-sessions/<sessionId>/post-process/`**.
+1. **Live LeetCode session** — extension → **`POST /api/live-sessions`** + chunk/snapshot routes → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** (`liveSessionId`), extracts **WAV**, runs **Whisper + rubric** with **extension `LiveCodeSnapshot`** rows as the code timeline → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`); artifacts under **`data/live-sessions/<sessionId>/post-process/`**.
 
-**Low-level design** (goals, diagrams, Prisma field notes, **`ffmpegExtract`** / OCR / alignment deep dive, env tables, CLI subcommands, curl examples) lives in **[`server/DESIGN.md`](./server/DESIGN.md)**. Keep that file in sync when you change pipeline behavior or HTTP contracts beyond what the README summaries describe.
+**Low-level design** (goals, diagrams, Prisma field notes, env tables) lives in **[`server/DESIGN.md`](./server/DESIGN.md)**. That document may still mention removed classic video/OCR paths until it is fully revised.
+
+Poll completed jobs with **`GET /api/interviews/:id`** (same id returned when ending a live session).
 
 ## License
 

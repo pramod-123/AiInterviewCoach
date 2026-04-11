@@ -2,7 +2,7 @@ import path from "node:path";
 import type { IAppFileStore } from "../../dao/file-store/IAppFileStore.js";
 import type { InterviewEvaluationPayload } from "../../types/interviewEvaluation.js";
 import type { SpeechTranscription } from "../../types/speechTranscription.js";
-import { transcriptionToSrt } from "../../video-pipeline/transcriptFormatting.js";
+import { transcriptionToSrt } from "../../media/transcriptFormatting.js";
 import type { SpeechTranscriptionEvaluationOrchestrator } from "../SpeechTranscriptionEvaluationOrchestrator.js";
 
 /**

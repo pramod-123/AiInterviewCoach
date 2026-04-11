@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SpeechSegment, SpeechTranscription } from "../../src/types/speechTranscription.js";
-import type { ExtractedFrame } from "../../src/video-pipeline/ffmpegExtract.js";
-import { extractedFramesToManifest } from "../../src/video-pipeline/ffmpegExtract.js";
-import { speechSegmentToSrtBlock, transcriptionToSrt } from "../../src/video-pipeline/transcriptFormatting.js";
+import type { ExtractedFrame } from "../../src/media/ffmpegExtract.js";
+import { extractedFramesToManifest } from "../../src/media/ffmpegExtract.js";
+import { speechSegmentToSrtBlock, transcriptionToSrt } from "../../src/media/transcriptFormatting.js";
 
 describe("speechSegmentToSrtBlock", () => {
   it("formats index, timestamps, and text", () => {

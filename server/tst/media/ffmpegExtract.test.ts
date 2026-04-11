@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRoiCropEncodeFilter,
   EDITOR_ROI_POST_CROP_TARGET_WIDTH_PX,
-} from "../../src/video-pipeline/ffmpegExtract.js";
+} from "../../src/media/ffmpegExtract.js";
 
 describe("buildRoiCropEncodeFilter", () => {
   it("chains crop, fixed-width lanczos scale, and yuv420p", () => {

@@ -19,7 +19,7 @@ import type { AppPaths } from "../infrastructure/AppPaths.js";
 import { writeE2eSpeechAnalysisArtifacts } from "./e2e/E2eSpeechAnalysisArtifacts.js";
 import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscriptionEvaluationOrchestrator.js";
 import { codeSnapshotsFromTimelineSec } from "./codeSnapshotsFromTimelineSec.js";
-import { FfmpegRunner, ffprobeFormatDurationSec } from "../video-pipeline/ffmpegExtract.js";
+import { FfmpegRunner, ffprobeFormatDurationSec } from "../media/ffmpegExtract.js";
 import type { SrtGenerationResult } from "../types/srtGeneration.js";
 import type { InterviewEvaluationPayload } from "../types/interviewEvaluation.js";
 import { SpeechSegment, SpeechTranscription } from "../types/speechTranscription.js";

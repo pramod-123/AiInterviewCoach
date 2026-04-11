@@ -5,7 +5,6 @@ import type {
   JobEvaluationLoad,
   JobStatus,
   JobWithInterviewAudio,
-  JobWithInterviewVideo,
   JsonValue,
   LiveSessionContent,
   LiveSessionGetItem,
@@ -30,16 +29,8 @@ export interface IAppDao {
   findJobIdIfExists(jobId: string): Promise<string | null>;
   findJobDetail(jobId: string): Promise<JobDetail | null>;
   findJobWithInterviewAudio(jobId: string): Promise<JobWithInterviewAudio | null>;
-  findJobWithInterviewVideo(jobId: string): Promise<JobWithInterviewVideo | null>;
   findJobLiveSessionId(jobId: string): Promise<{ liveSessionId: string | null } | null>;
   findJobForEvaluationLoad(jobId: string): Promise<JobEvaluationLoad | null>;
-  createJobPendingWithInterviewVideo(params: {
-    id: string;
-    filePath: string;
-    originalFilename: string;
-    mimeType: string;
-    sizeBytes: number;
-  }): Promise<void>;
   createJobFailedLiveSession(params: {
     id: string;
     liveSessionId: string;

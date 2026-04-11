@@ -7,7 +7,7 @@ import {
   buildFinalTranscriptJson,
   finalTranscriptToEvaluationTimeline,
   stringifyInterviewTimelineForEvaluation,
-} from "../../video-pipeline/transcriptFormatting.js";
+} from "../../media/transcriptFormatting.js";
 
 const EVAL_PROBLEM_PAYLOAD_KEY = "evalProblemStatementText";
 

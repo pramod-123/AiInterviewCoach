@@ -7,7 +7,6 @@ import type {
   JobEvaluationLoad,
   JobStatus,
   JobWithInterviewAudio,
-  JobWithInterviewVideo,
   JsonValue,
   LiveSessionContent,
   LiveSessionGetItem,
@@ -153,20 +152,6 @@ export class PrismaAppDao implements IAppDao {
     };
   }
 
-  async findJobWithInterviewVideo(jobId: string): Promise<JobWithInterviewVideo | null> {
-    const job = await this.db.job.findUnique({
-      where: { id: jobId },
-      include: { interviewVideo: true },
-    });
-    if (!job) {
-      return null;
-    }
-    return {
-      id: job.id,
-      interviewVideo: job.interviewVideo ? { jobId: job.interviewVideo.jobId, filePath: job.interviewVideo.filePath } : null,
-    };
-  }
-
   async findJobLiveSessionId(jobId: string): Promise<{ liveSessionId: string | null } | null> {
     const job = await this.db.job.findUnique({
       where: { id: jobId },
@@ -200,29 +185,6 @@ export class PrismaAppDao implements IAppDao {
       speechUtterances: toSpeechItems(job.speechUtterances),
       liveSession: job.liveSession,
     };
-  }
-
-  async createJobPendingWithInterviewVideo(params: {
-    id: string;
-    filePath: string;
-    originalFilename: string;
-    mimeType: string;
-    sizeBytes: number;
-  }): Promise<void> {
-    await this.db.job.create({
-      data: {
-        id: params.id,
-        status: "PENDING",
-        interviewVideo: {
-          create: {
-            filePath: params.filePath,
-            originalFilename: params.originalFilename,
-            mimeType: params.mimeType,
-            sizeBytes: params.sizeBytes,
-          },
-        },
-      },
-    });
   }
 
   async createJobFailedLiveSession(params: {

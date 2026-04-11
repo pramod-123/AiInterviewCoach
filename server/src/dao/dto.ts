@@ -63,11 +63,6 @@ export type InterviewAudioItem = {
   durationSeconds: number | null;
 };
 
-export type InterviewVideoItem = {
-  jobId: string;
-  filePath: string;
-};
-
 export type LiveSessionListItem = {
   id: string;
   status: LiveSessionStatus;
@@ -120,11 +115,6 @@ export type JobDetail = {
 export type JobWithInterviewAudio = {
   id: string;
   interviewAudio: InterviewAudioItem | null;
-};
-
-export type JobWithInterviewVideo = {
-  id: string;
-  interviewVideo: InterviewVideoItem | null;
 };
 
 export type JobEvaluationLoad = {

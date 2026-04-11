@@ -14,7 +14,6 @@ import { appDao, closeAppDatabase, openAppDatabase, runAppTransaction } from "..
 import { appFileStore } from "../src/appFileStore.js";
 import { AppPaths } from "../src/infrastructure/AppPaths.js";
 import { LiveSessionPostProcessReset } from "../src/live-session/LiveSessionPostProcessReset.js";
-import { OpenAiLlmClient } from "../src/services/llm/OpenAiLlmClient.js";
 import { assertMandatoryInterviewApiConfig } from "../src/services/mandatoryInterviewApiEnv.js";
 import { InterviewEvaluationServiceFactory } from "../src/services/evaluation/InterviewEvaluationServiceFactory.js";
 import { LiveSessionPostProcessor } from "../src/services/LiveSessionPostProcessor.js";
@@ -50,8 +49,7 @@ const speechAnalysis = new SpeechTranscriptionEvaluationOrchestratorFactory(
   evaluationFactory,
   log,
 ).create();
-const visionOpenAiLlm = OpenAiLlmClient.tryCreate(process.env);
-assertMandatoryInterviewApiConfig(speechAnalysis, visionOpenAiLlm);
+assertMandatoryInterviewApiConfig(speechAnalysis);
 
 const processor = new LiveSessionPostProcessor(
   appDao,

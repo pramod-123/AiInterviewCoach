@@ -10,8 +10,7 @@ import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscri
  * Transcription + evaluation are delegated to {@link SpeechTranscriptionEvaluationOrchestrator}.
  *
  * On success, updates `Job`, `InterviewAudio.durationSeconds`, replaces {@link SpeechUtterance}
- * rows, and upserts `Result.payload` (`stt` + `evaluation`). Video jobs populate
- * {@link CodeSnapshot} (`VIDEO_OCR`) via {@link VideoJobProcessor}.
+ * rows, and upserts `Result.payload` (`stt` + `evaluation`).
  */
 export class AudioJobProcessor {
   constructor(

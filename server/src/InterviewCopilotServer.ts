@@ -10,14 +10,11 @@ import { LiveSessionRoutesController } from "./http/LiveSessionRoutesController.
 import { AppPaths } from "./infrastructure/AppPaths.js";
 import { assertMandatoryInterviewApiConfig } from "./services/mandatoryInterviewApiEnv.js";
 import { InterviewEvaluationServiceFactory } from "./services/evaluation/InterviewEvaluationServiceFactory.js";
-import { OpenAiLlmClient } from "./services/llm/OpenAiLlmClient.js";
 import { SpeechTranscriptionEvaluationOrchestratorFactory } from "./services/SpeechTranscriptionEvaluationOrchestratorFactory.js";
 import { SpeechToTextServiceFactory } from "./services/speech-to-text/SpeechToTextServiceFactory.js";
 import { LiveSessionPostProcessor } from "./services/LiveSessionPostProcessor.js";
-import { VideoJobProcessor } from "./services/VideoJobProcessor.js";
 import { GeminiLiveWebSocketPlugin } from "./http/GeminiLiveWebSocketPlugin.js";
 import { LiveSessionPostProcessWebSocketPlugin } from "./http/LiveSessionPostProcessWebSocketPlugin.js";
-import { EditorRoiDetectionService } from "./video-pipeline/editorRoiDetection.js";
 import { SrtGeneratorFactory } from "./services/srt-generator/SrtGeneratorFactory.js";
 
 /**
@@ -74,19 +71,7 @@ export class InterviewCopilotServer {
       this.evaluationFactory,
       this.app.log,
     ).create();
-    const visionOpenAiLlm = OpenAiLlmClient.tryCreate(process.env);
-    // ffmpeg/ffprobe/tesseract, STT + eval, vision ROI — fail before accepting uploads.
-    assertMandatoryInterviewApiConfig(speechAnalysis, visionOpenAiLlm);
-    const roiDetection = new EditorRoiDetectionService(visionOpenAiLlm!);
-    const videoProcessor = new VideoJobProcessor(
-      appDao,
-      runAppTransaction,
-      this.paths,
-      appFileStore,
-      speechAnalysis,
-      this.app.log,
-      roiDetection,
-    );
+    assertMandatoryInterviewApiConfig(speechAnalysis);
     const liveSessionPostProcessor = new LiveSessionPostProcessor(
       appDao,
       runAppTransaction,
@@ -106,7 +91,7 @@ export class InterviewCopilotServer {
     liveSessionRoutes.register(this.app);
     new LiveSessionPostProcessWebSocketPlugin(appDao).register(this.app);
 
-    const jobRoutes = new JobRoutesController(appDao, this.paths, appFileStore, videoProcessor);
+    const jobRoutes = new JobRoutesController(appDao);
     jobRoutes.register(this.app);
   }
 
