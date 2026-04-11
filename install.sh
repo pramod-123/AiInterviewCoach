@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Interactive installer: GitHub Releases (server tarball + Chrome extension), host
-# dependencies (Node 20+, ffmpeg, Tesseract, Python, unzip), WhisperX + local Whisper venvs, Prisma.
+# dependencies (Node 20+, ffmpeg/ffprobe, Python, unzip), WhisperX + local Whisper venvs, Prisma.
 # LLM vendor: ↑/↓ menu (OpenAI vs Anthropic). STT_PROVIDER is always set to local (local Whisper).
 #
 # Usage:
@@ -189,7 +189,7 @@ install_welcome() {
   printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_DIM}" "Installer · ${VERSION_WIRED}" "${C_ACCENT_B}" "${C_RST}"
   printf '%b╚══════════════════════════════════════════════════════════════╝%b\n' "${C_ACCENT_B}" "${C_RST}"
   say ""
-  say_dim "Release server + Chrome extension · host tools (ffmpeg, Tesseract, …) · optional Python venvs · SQLite & .env"
+  say_dim "Release server + Chrome extension · host tools (ffmpeg/ffprobe, …) · optional Python venvs · SQLite & .env"
   say ""
 }
 
@@ -469,21 +469,21 @@ install_deps_macos() {
     say "Homebrew is not installed. Install it from https://brew.sh then re-run this script."
     return 1
   fi
-  say "brew install node ffmpeg tesseract python3 unzip"
-  brew install node ffmpeg tesseract python3 unzip
+  say "brew install node ffmpeg python3 unzip"
+  brew install node ffmpeg python3 unzip
   hash -r 2>/dev/null || true
 }
 
 install_deps_linux_apt() {
   say "Configuring Node.js 22.x (NodeSource) and system packages (sudo required)..."
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  sudo apt-get install -y nodejs ffmpeg tesseract-ocr python3 python3-venv python3-pip curl ca-certificates unzip build-essential
+  sudo apt-get install -y nodejs ffmpeg python3 python3-venv python3-pip curl ca-certificates unzip build-essential
   hash -r 2>/dev/null || true
 }
 
 install_deps_linux_dnf() {
-  say "Installing Node.js, ffmpeg, tesseract, Python (sudo required)..."
-  sudo dnf install -y nodejs npm ffmpeg tesseract python3 python3-pip curl unzip gcc gcc-c++ make
+  say "Installing Node.js, ffmpeg, Python (sudo required)..."
+  sudo dnf install -y nodejs npm ffmpeg python3 python3-pip curl unzip gcc gcc-c++ make
   hash -r 2>/dev/null || true
 }
 
@@ -504,8 +504,8 @@ install_all_system_dependencies() {
     dnf) install_deps_linux_dnf ;;
     *)
       say "Unsupported Linux distribution for automatic install."
-      say "Install manually: Node.js 20+, ffmpeg, ffprobe, tesseract, python3, python3-venv, pip, unzip, curl, tar."
-      say "Debian/Ubuntu example: use https://github.com/nodesource/distributions then apt install ffmpeg tesseract-ocr python3 python3-venv python3-pip unzip build-essential"
+      say "Install manually: Node.js 20+, ffmpeg, ffprobe, python3, python3-venv, pip, unzip, curl, tar."
+      say "Debian/Ubuntu example: use https://github.com/nodesource/distributions then apt install ffmpeg python3 python3-venv python3-pip unzip build-essential"
       return 1
       ;;
   esac
@@ -541,7 +541,7 @@ ensure_runtime_after_install() {
     echo "Open a new terminal or run: hash -r" >&2
     return 1
   fi
-  require_cmds curl tar python3 ffmpeg ffprobe tesseract unzip || return 1
+  require_cmds curl tar python3 ffmpeg ffprobe unzip || return 1
   return 0
 }
 
@@ -650,15 +650,15 @@ main() {
     need_install=true
     say_warn "Node.js 20+ not found or too old."
   fi
-  for c in ffmpeg ffprobe tesseract python3 unzip curl tar; do
+  for c in ffmpeg ffprobe python3 unzip curl tar; do
     command -v "$c" >/dev/null 2>&1 || need_install=true
   done
   if [[ "$need_install" == true ]]; then
-    say_warn "Missing or not usable on PATH (the server needs these for video, audio, and local tools):"
+    say_warn "Missing or not usable on PATH (the server needs these for recording merge, audio, and local tools):"
     if ! node_is_ok; then
       say "  - Node.js 20+ (run: node --version)"
     fi
-    for c in ffmpeg ffprobe tesseract python3 unzip curl tar; do
+    for c in ffmpeg ffprobe python3 unzip curl tar; do
       if ! command -v "$c" >/dev/null 2>&1; then
         say "  - ${c}"
       fi
@@ -672,7 +672,7 @@ main() {
   else
     say_ok "Host dependency check passed — required tools are on PATH:"
     say_dim "  Video/audio: ffmpeg ($(command -v ffmpeg)), ffprobe ($(command -v ffprobe))"
-    say_dim "  OCR: tesseract ($(command -v tesseract))  ·  Node $(node --version 2>/dev/null)  ·  python3 ($(command -v python3))"
+    say_dim "  Node $(node --version 2>/dev/null)  ·  python3 ($(command -v python3))"
     say_dim "  Utilities: unzip, curl, tar"
   fi
 
@@ -680,7 +680,7 @@ main() {
   if ! ensure_runtime_after_install; then
     exit 1
   fi
-  tick_done "Host dependencies satisfied (Node, ffmpeg, tesseract, …)"
+  tick_done "Host dependencies satisfied (Node, ffmpeg/ffprobe, …)"
   bump_install_progress "Host ready"
 
   SERVER_ASSET_BASENAME="ai-interview-copilot-server-$(detect_asset_suffix).tar.gz"

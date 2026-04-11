@@ -1,6 +1,6 @@
 # Ai Interview Copilot
 
-Backend service that ingests **interview screen recordings**, runs **speech-to-text** (Whisper) and a structured **rubric evaluation** (LLM). **Uploaded video** jobs also extract an **editor ROI** (vision) and **frame OCR** (Tesseract on cropped video). **Live LeetCode sessions** capture **tab video + periodic editor code snapshots** (no Tesseract on the recording); after **`/end`**, the server merges WebM, runs STT, and evaluates using those snapshots on the same timeline. Exposes an **HTTP API** for classic **video upload** jobs and **live sessions** from the Chrome extension.
+Backend service for **live LeetCode sessions**: the extension captures **tab video + mic + periodic editor code snapshots**; after **`/end`**, the server merges WebM with **ffmpeg**, runs **speech-to-text** (Whisper) and a structured **rubric evaluation** (LLM) on the same timeline. **Tesseract is not used.** Poll **`GET /api/interviews/:id`** for results. Classic **`POST /api/interviews`** file upload has been removed.
 
 The **Chrome** extension under **`browser-extension/chrome/`** starts sessions from **leetcode.com** problems, records via the **side panel** (mic + tab), uploads chunks to the server, and opens a **sessions** report page (video, transcript, dimensions, moment-by-moment feedback).
 
@@ -8,7 +8,7 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 
 | Path | Purpose |
 |------|---------|
-| `server/` | Node.js + Fastify app, Prisma (SQLite), video pipeline, live-session merge/remux, prompts |
+| `server/` | Node.js + Fastify app, Prisma (SQLite), live-session merge/remux, STT/eval, prompts |
 | `server/tst/` | Vitest unit tests |
 | `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, local **Sessions** UI |
 | `browser-extension/firefox/` | Reserved for a future Firefox build |
@@ -19,9 +19,8 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 ## Prerequisites
 
 - **Node.js** 20+ (see [`.nvmrc`](./.nvmrc); 22 recommended)
-- **ffmpeg** & **ffprobe** (demux, WAV, crop, frames)
-- **tesseract** (OCR on ROI frames)
-- **OpenAI API key** for remote Whisper, vision ROI, and (by default) evaluation
+- **ffmpeg** & **ffprobe** (merge WebM, WAV extract, stitch)
+- **OpenAI API key** for remote Whisper and (by default) evaluation (Anthropic optional for eval)
 
 ## Quick start
 

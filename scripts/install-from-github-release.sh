@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Download a pre-built Ai Interview Copilot server tarball from GitHub Releases,
-# install system prerequisites (ffmpeg, ffprobe, tesseract), apply Prisma schema, and optionally start the API.
+# install system prerequisites (ffmpeg, ffprobe), apply Prisma schema, and optionally start the API.
 #
 # Requires: Node.js 20+, curl, tar, gzip. Python 3 is used to parse the GitHub API (no jq).
 #
@@ -22,11 +22,11 @@ Usage: AI_INTERVIEW_COPILOT_REPO=owner/name ./scripts/install-from-github-releas
   --repo OWNER/NAME     GitHub repository (default: env AI_INTERVIEW_COPILOT_REPO)
   --version TAG         Release tag, e.g. v1.0.0 (default: latest)
   --prefix DIR          Install directory (default: $HOME/.local/share/ai-interview-copilot-server)
-  --brew, --with-brew   macOS only: brew install ffmpeg tesseract
+  --brew, --with-brew   macOS only: brew install ffmpeg
   --no-run              Install and db push only; do not start the server
   -h, --help            Show this help
 
-Requires on PATH: Node.js 20+, ffmpeg, ffprobe, tesseract, curl, tar, python3.
+Requires on PATH: Node.js 20+, ffmpeg, ffprobe, curl, tar, python3.
 Optional: GITHUB_TOKEN for higher API rate limits or private repos.
 
 After install, edit .env in the install directory (OPENAI_API_KEY, etc.).
@@ -127,18 +127,18 @@ if [[ "${WITH_BREW}" == true ]]; then
     echo "Homebrew not found. Install from https://brew.sh/" >&2
     exit 1
   fi
-  echo "Installing ffmpeg and tesseract via Homebrew..."
-  brew install ffmpeg tesseract
+  echo "Installing ffmpeg via Homebrew..."
+  brew install ffmpeg
 fi
 
 missing_bin=()
-for cmd in ffmpeg ffprobe tesseract tar; do
+for cmd in ffmpeg ffprobe tar; do
   command -v "${cmd}" >/dev/null 2>&1 || missing_bin+=("${cmd}")
 done
 if [[ ${#missing_bin[@]} -gt 0 ]]; then
   echo "Missing on PATH: ${missing_bin[*]}" >&2
-  echo "  macOS: brew install ffmpeg tesseract" >&2
-  echo "  Debian/Ubuntu: sudo apt-get install -y ffmpeg tesseract-ocr" >&2
+  echo "  macOS: brew install ffmpeg" >&2
+  echo "  Debian/Ubuntu: sudo apt-get install -y ffmpeg" >&2
   exit 1
 fi
 

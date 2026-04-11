@@ -16,12 +16,12 @@ Usage: ./install-dev.sh [options]
   then starts the dev server (tsx watch) unless --no-run is set.
 
 Options:
-  --brew, --with-brew   On macOS, run: brew install ffmpeg tesseract (needs Homebrew)
+  --brew, --with-brew   On macOS, run: brew install ffmpeg (needs Homebrew)
   --no-run              Install and migrate only; do not start the server
   --prod                After install, run npm run build && npm start (no watch)
   -h, --help            Show this help
 
-Requires: Node.js 20+, ffmpeg, ffprobe, tesseract on PATH.
+Requires: Node.js 20+, ffmpeg, ffprobe on PATH.
 Set OPENAI_API_KEY in server/.env (created from .env.example if missing).
 
 For end users installing from GitHub Releases (binary tarball), use ./install.sh instead.
@@ -87,18 +87,18 @@ if [[ "${WITH_BREW}" == true ]]; then
     echo "Homebrew not found. Install from https://brew.sh/" >&2
     exit 1
   fi
-  echo "Installing ffmpeg and tesseract via Homebrew..."
-  brew install ffmpeg tesseract
+  echo "Installing ffmpeg via Homebrew..."
+  brew install ffmpeg
 fi
 
 missing_bin=()
-for cmd in ffmpeg ffprobe tesseract; do
+for cmd in ffmpeg ffprobe; do
   command -v "${cmd}" >/dev/null 2>&1 || missing_bin+=("${cmd}")
 done
 if [[ ${#missing_bin[@]} -gt 0 ]]; then
   echo "Missing on PATH: ${missing_bin[*]}" >&2
-  echo "  macOS: brew install ffmpeg tesseract   (or re-run: ./install-dev.sh --brew)" >&2
-  echo "  Debian/Ubuntu: sudo apt-get install -y ffmpeg tesseract-ocr" >&2
+  echo "  macOS: brew install ffmpeg   (or re-run: ./install-dev.sh --brew)" >&2
+  echo "  Debian/Ubuntu: sudo apt-get install -y ffmpeg" >&2
   exit 1
 fi
 

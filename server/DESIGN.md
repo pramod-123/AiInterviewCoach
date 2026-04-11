@@ -4,6 +4,8 @@ This document is the **low-level** design for the Node/TypeScript server under `
 
 **High-level** setup, repository layout, **HTTP route summaries**, and the **Chrome extension** live in the **[repository README](../README.md)** (including [HTTP API (summary)](../README.md#http-api-summary) and [Browser extension](../README.md#browser-extension-leetcode-live-capture)).
 
+> **Note (2026):** The classic **`POST /api/interviews`** video job pipeline, **Tesseract**, **LLM ROI**, **`pipelineCli`**, and **`E2eInterviewPipeline`** were **removed**. The server still needs **ffmpeg**/**ffprobe** and **STT + evaluation** config. Sections below that describe upload-video OCR/ROI are **historical** until this file is rewritten.
+
 ---
 
 #### 1. Goals
