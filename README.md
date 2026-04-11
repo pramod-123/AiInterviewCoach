@@ -26,27 +26,16 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 
 ### Option A — Release installer (recommended for end users)
 
-From a **clone or copy** of this repository at the version you want:
+**One command** (no env vars): installs under `~/.local/share/ai-interview-copilot` from **`pramod-123/AiInterviewCopilot`** **`latest`** release, using the **public GitHub API** (no GitHub token). Piped installs skip heavy WhisperX/local-Whisper venvs by default; add API keys in the install dir `.env` afterward, or run `./install.sh` from a terminal for full interactive setup.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh | bash
+```
+
+From a **clone** (interactive: keys, LLM menu, optional venvs):
 
 ```bash
 ./install.sh
-```
-
-The script downloads the **server** tarball and **Chrome extension** zip from **GitHub Releases** for the repo you specify (default prompt: enter `owner/name`, e.g. `pramod-123/AiInterviewCopilot`). It uses the **public GitHub API** and release asset URLs — **no `GITHUB_TOKEN`** or other GitHub credential is required.
-
-Useful environment variables (see comments at the top of [`install.sh`](./install.sh)):
-
-| Variable | Purpose |
-|----------|---------|
-| `AI_INTERVIEW_COPILOT_REPO` | `owner/name` — skips the repo prompt when set |
-| `RELEASE_TAG` | e.g. `latest` or `v1.2.3` — skips the tag prompt |
-| `INSTALL_PREFIX` | Where to install (default under `$HOME/.local/share/`) |
-| `INSTALL_CONSUMER_YES=1` | Non-interactive: accept default y/n prompts |
-
-Non-interactive example:
-
-```bash
-INSTALL_CONSUMER_YES=1 AI_INTERVIEW_COPILOT_REPO=pramod-123/AiInterviewCopilot ./install.sh
 ```
 
 ### Option B — GitHub release script (minimal)

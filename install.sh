@@ -1,27 +1,23 @@
 #!/usr/bin/env bash
 #
-# Interactive installer: GitHub Releases (server tarball + Chrome extension), host
-# dependencies (Node 20+, ffmpeg/ffprobe, Python, unzip), WhisperX + local Whisper venvs, Prisma.
-# LLM vendor: ↑/↓ menu (OpenAI vs Anthropic). STT_PROVIDER is always set to local (local Whisper).
+# Installer: GitHub Releases (server tarball + Chrome extension), host dependencies
+# (Node 20+, ffmpeg/ffprobe, Python, unzip), optional Python venvs, Prisma.
 #
-# Usage:
+# One-liner (no env vars; public GitHub API; stdin is the script — auto non-interactive):
+#   curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh | bash
+#
+# From a clone (TTY): prompts for API keys / menus; y/n as usual unless INSTALL_CONSUMER_YES=1.
 #   ./install.sh
-#   bash install.sh
 #
-# Non-interactive (accept all y/n defaults):
-#   INSTALL_CONSUMER_YES=1 ./install.sh
+# Developers from git should use ./install-dev.sh (npm in server/, dev server).
 #
-# Developers working from a git clone should use ./install-dev.sh (npm in server/, dev server).
-#
-# Environment:
-#   AI_INTERVIEW_COPILOT_REPO   GitHub owner/name for releases (public repo; anonymous API)
-#   INSTALL_CONSUMER_YES        if 1, treat all y/n prompts as "yes" (no secret prompts;
-#                               set OPENAI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER,
-#                               HF_TOKEN or HUGGING_FACE_HUB_TOKEN, GEMINI_API_KEY,
-#                               GEMINI_LIVE_MODEL in the environment as needed)
-#   RELEASE_TAG                 optional; skip prompt (e.g. latest or v1.2.3)
-#   INSTALL_PREFIX              optional; skip install-dir prompt
-#   INSTALL_SKIP_PYTHON_VENVS   if 1, skip WhisperX / local Whisper venv steps (CI / smoke)
+# Environment (optional overrides):
+#   AI_INTERVIEW_COPILOT_REPO   default pramod-123/AiInterviewCopilot if unset
+#   RELEASE_TAG                 default latest
+#   INSTALL_PREFIX              default ~/.local/share/ai-interview-copilot
+#   INSTALL_CONSUMER_YES        if 1: all y/n yes; secrets only from env (no prompts)
+#   INSTALL_INTERACTIVE         if 1: prompt for repo, tag, install path (defaults still shown)
+#   INSTALL_SKIP_PYTHON_VENVS   if 1, skip WhisperX / local Whisper venv (also default on piped install)
 #   INSTALL_CONSUMER_START_SERVER  if 1 with INSTALL_CONSUMER_YES, start API after install
 #   NO_COLOR / INSTALL_NO_COLOR   if set, disable ANSI styling (see https://no-color.org/)
 #   INSTALL_NO_CURL_PROGRESS      if set, hide curl transfer bar for large downloads
@@ -34,10 +30,16 @@ VERSION_WIRED="0.2.0-installer"
 # Idempotency marker for ~/.zshrc snippet (see maybe_append_zsh_launcher_snippet).
 ZSH_LAUNCHER_MARKER='# Ai Interview Copilot launcher (install.sh)'
 
-REPO="${AI_INTERVIEW_COPILOT_REPO:-}"
-RELEASE_TAG="${RELEASE_TAG:-}"
-INSTALL_PREFIX="${INSTALL_PREFIX:-}"
+# Upstream releases (override with AI_INTERVIEW_COPILOT_REPO=owner/name for forks).
+REPO="${AI_INTERVIEW_COPILOT_REPO:-pramod-123/AiInterviewCopilot}"
+RELEASE_TAG="${RELEASE_TAG:-latest}"
+INSTALL_PREFIX="${INSTALL_PREFIX:-"${HOME}/.local/share/ai-interview-copilot"}"
 RUN_SERVER_AFTER=false
+# curl … | bash: stdin is the script, not a TTY — use non-interactive defaults (no env needed).
+if [[ ! -t 0 ]]; then
+  INSTALL_CONSUMER_YES="${INSTALL_CONSUMER_YES:-1}"
+  INSTALL_SKIP_PYTHON_VENVS="${INSTALL_SKIP_PYTHON_VENVS:-1}"
+fi
 AUTO_YES="${INSTALL_CONSUMER_YES:-}"
 
 SERVER_ASSET_BASENAME=""
@@ -181,11 +183,13 @@ prompt() {
   local text="$1"
   local def="${2:-}"
   local reply
+  local in=/dev/stdin
+  [[ -r /dev/tty ]] && in=/dev/tty
   if [[ -n "$def" ]]; then
-    read -r -p "${C_PROMPT}${text}${C_RST} ${C_DIM}[${def}]:${C_RST} " reply || true
+    read -r -p "${C_PROMPT}${text}${C_RST} ${C_DIM}[${def}]:${C_RST} " reply <"$in" || true
     reply="${reply:-$def}"
   else
-    read -r -p "${C_PROMPT}${text}${C_RST}${C_DIM}:${C_RST} " reply || true
+    read -r -p "${C_PROMPT}${text}${C_RST}${C_DIM}:${C_RST} " reply <"$in" || true
   fi
   printf '%s' "$reply"
 }
@@ -223,8 +227,8 @@ trim_crlf() {
 # Sets global choose_llm_index: 0=OpenAI, 1=Anthropic.
 choose_llm_provider_menu() {
   local labels=(
-    "OpenAI — LLM evaluation, video ROI, and local Whisper STT (typical setup)"
-    "Anthropic — LLM evaluation only (OpenAI key optional for ROI / OpenAI-only features)"
+    "OpenAI — LLM evaluation and local Whisper STT (typical setup)"
+    "Anthropic — LLM evaluation only (OpenAI key optional for Whisper / OpenAI-only features)"
   )
   local sel=0
   local n=${#labels[@]}
@@ -599,20 +603,18 @@ main() {
   install_welcome
   banner "Repository & install path"
 
-  if [[ -z "$REPO" ]]; then
-    REPO="$(prompt "GitHub repository (owner/name) for releases" "")"
+  if [[ "${INSTALL_INTERACTIVE:-}" == "1" ]]; then
+    REPO="$(prompt "GitHub repository (owner/name) for releases" "${REPO}")"
+    RELEASE_TAG="$(prompt "Release tag or 'latest'" "${RELEASE_TAG}")"
+    INSTALL_PREFIX="$(prompt "Install directory" "${INSTALL_PREFIX}")"
+  else
+    say_dim "Using ${REPO} @ ${RELEASE_TAG} → ${INSTALL_PREFIX} (set INSTALL_INTERACTIVE=1 to prompt for these)"
   fi
   if [[ -z "$REPO" || "$REPO" != */* ]]; then
     printf '%b%s%b\n' "${C_ERR}" "A GitHub repo in the form owner/name is required." "${C_RST}" >&2
     exit 1
   fi
 
-  if [[ -z "${RELEASE_TAG}" ]]; then
-    RELEASE_TAG="$(prompt "Release tag or 'latest'" "latest")"
-  fi
-  if [[ -z "${INSTALL_PREFIX}" ]]; then
-    INSTALL_PREFIX="$(prompt "Install directory" "${HOME}/.local/share/ai-interview-copilot")"
-  fi
   INSTALL_PREFIX="$(mkdir -p "${INSTALL_PREFIX}" && cd "${INSTALL_PREFIX}" && pwd)"
 
   if ! prompt_yn "Proceed with install into ${INSTALL_PREFIX} from ${REPO} @ ${RELEASE_TAG}?" "y"; then
@@ -727,13 +729,13 @@ main() {
       llm_choice="anthropic"
       say "Anthropic will run rubric evaluation (and related LLM calls). Speech-to-text uses local Whisper (STT_PROVIDER=local)."
       anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — for video ROI and other OpenAI features (Enter to skip)")")"
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — optional for Whisper / OpenAI features (Enter to skip)")")"
       if [[ -z "$openai_key" ]]; then
-        say "No OpenAI key — add OPENAI_API_KEY in .env before using video ROI or other OpenAI-backed features."
+        say "No OpenAI key — add OPENAI_API_KEY in .env before using OpenAI-backed features."
       fi
     else
       llm_choice="openai"
-      say "OpenAI will power LLM evaluation, video ROI, and (with the local Whisper venv) offline speech-to-text."
+      say "OpenAI will power LLM evaluation and (with the local Whisper venv) offline speech-to-text."
       openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key (Enter to skip)")")"
       anthropic_key=""
     fi
@@ -780,7 +782,7 @@ main() {
     say_note "LLM_PROVIDER=anthropic but no Anthropic key — add ANTHROPIC_API_KEY in .env before using the LLM."
   fi
   if [[ "$llm_choice" == "openai" && -z "$openai_key" ]]; then
-    say_note "LLM_PROVIDER=openai but no OpenAI key — add OPENAI_API_KEY in .env for LLM, video ROI, and related OpenAI features."
+    say_note "LLM_PROVIDER=openai but no OpenAI key — add OPENAI_API_KEY in .env for LLM and related OpenAI features."
   fi
   if [[ -z "$hf_token" ]]; then
     say_note "No HF_TOKEN — add one in .env before using WhisperX/pyannote diarization."
