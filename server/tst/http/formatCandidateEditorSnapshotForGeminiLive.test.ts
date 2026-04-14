@@ -2,22 +2,20 @@ import { describe, expect, it } from "vitest";
 import { formatCandidateEditorSnapshotForGeminiLive } from "../../src/http/GeminiLiveWebSocketPlugin.js";
 
 describe("formatCandidateEditorSnapshotForGeminiLive", () => {
-  it("wraps non-empty code and mentions no video", () => {
+  it("wraps non-empty code with framing line", () => {
     const out = formatCandidateEditorSnapshotForGeminiLive("const x = 1;\n");
+    expect(out).toContain("[Candidate editor");
     expect(out).toContain("const x = 1;");
-    expect(out).toContain("Screen/video frames are not sent");
-    expect(out).toContain("plain text");
   });
 
-  it("uses empty placeholder for blank buffer", () => {
+  it("uses placeholder for empty or whitespace-only buffer", () => {
     expect(formatCandidateEditorSnapshotForGeminiLive("")).toContain("(empty editor buffer)");
     expect(formatCandidateEditorSnapshotForGeminiLive("   ")).toContain("(empty editor buffer)");
   });
 
-  it("passes through long buffers without server-side truncation", () => {
-    const long = `// ${"x".repeat(8000)}\nconst n = 1;\n`;
+  it("does not truncate long buffers in this formatter", () => {
+    const long = "a".repeat(20_000);
     const out = formatCandidateEditorSnapshotForGeminiLive(long);
-    expect(out).toContain(long);
-    expect(out).not.toContain("truncated");
+    expect(out.length).toBeGreaterThan(19_000);
   });
 });

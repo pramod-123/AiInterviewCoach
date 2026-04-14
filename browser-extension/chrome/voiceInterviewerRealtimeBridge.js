@@ -1,6 +1,6 @@
 /**
  * WebSocket client for `/api/live-sessions/:id/realtime` — streams mic PCM (16 kHz) to the server
- * and plays model PCM audio. Editor updates use `{ type: "editorCode" }`.
+ * and plays model PCM audio. Editor updates use `{ type: "editorCode" }` (server may ignore per config).
  * Exposes {@link VoiceInterviewerRealtimeBridge.start}.
  * @see server — WebSocket route `/api/live-sessions/:id/realtime`
  */
@@ -156,7 +156,7 @@
     let pingId = null;
     /** @type {ReturnType<typeof setTimeout> | null} */
     let speakingResetId = null;
-    /** Dedupe sends; cleared on upstream reconnect so the model can see the buffer again. */
+    /** Dedupe sends; cleared on upstream reconnect so the model can see the buffer again after re-enable. */
     let lastEditorPayloadSent = null;
     /** After `turnComplete` / `generationComplete`, clear "speaking" once the pull queue has drained. */
     let modelTurnAudioEnded = false;
@@ -355,7 +355,7 @@
     }
 
     /**
-     * Push full editor buffer to the server (wrapped as a realtime text turn). Skips if unchanged since last send.
+     * Push full editor buffer to the server (`editorCode`). Skips if unchanged since last send.
      * @param {string} code
      */
     function sendEditorSnapshot(code) {
@@ -468,6 +468,13 @@
         if (t === "ready") {
           log(`Voice interviewer: ready (model ${p.model || "?"})`);
           onStatus("ready");
+        } else if (t === "goAway") {
+          const tl = p.timeLeft != null ? String(p.timeLeft) : "";
+          log(
+            tl
+              ? `Voice interviewer: server will disconnect soon (timeLeft=${tl})`
+              : "Voice interviewer: server will disconnect soon (goAway)",
+          );
         } else if (t === "reconnecting") {
           stopModelPlaybackImmediate();
           lastEditorPayloadSent = null;
@@ -485,6 +492,9 @@
           appendModelPcmChunk(p.data, typeof p.mimeType === "string" ? p.mimeType : "");
         } else if (t === "modelText" && typeof p.text === "string" && p.text.trim()) {
           log(`Interviewer: ${p.text.trim().slice(0, 200)}${p.text.length > 200 ? "…" : ""}`);
+        } else if (t === "modelThought" && typeof p.text === "string" && p.text.trim()) {
+          const s = p.text.trim();
+          log(`Thought: ${s.slice(0, 2000)}${s.length > 2000 ? "…" : ""}`);
         } else if (t === "inputTranscription" && typeof p.text === "string" && p.text.trim()) {
           log(`You (transcript): ${p.text.trim().slice(0, 200)}${p.text.length > 200 ? "…" : ""}`);
         } else if (t === "error" && p.message) {

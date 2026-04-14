@@ -6,7 +6,9 @@ export type PostProcessClientEvent =
   | { type: "post_process"; phase: "processing"; jobId: string }
   | { type: "post_process"; phase: "complete"; jobId: string }
   | { type: "post_process"; phase: "failed"; jobId: string; errorMessage: string | null }
-  | { type: "post_process"; phase: "error"; message: string };
+  | { type: "post_process"; phase: "error"; message: string }
+  /** Session and linked job were removed from the database; clients should stop polling and refresh lists. */
+  | { type: "post_process"; phase: "deleted" };
 
 const hub = new EventEmitter();
 hub.setMaxListeners(200);

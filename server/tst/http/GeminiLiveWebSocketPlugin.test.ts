@@ -78,6 +78,29 @@ describe("GeminiLiveWebSocketPlugin.messageToClientPayload", () => {
     ]);
   });
 
+  it("maps modelTurn text with thought flag as modelThought", () => {
+    const msg = {
+      serverContent: {
+        modelTurn: {
+          parts: [{ text: "Planning…", thought: true }, { text: "Hi there" }],
+        },
+      },
+    } as LiveServerMessage;
+    expect(GeminiLiveWebSocketPlugin.messageToClientPayload(msg)).toEqual([
+      { type: "modelThought", text: "Planning…" },
+      { type: "modelText", text: "Hi there" },
+    ]);
+  });
+
+  it("payloadsForClientSocket forwards all payloads including modelThought", () => {
+    const payloads = [
+      { type: "modelThought", text: "secret" },
+      { type: "modelText", text: "hi" },
+      { type: "interrupted", value: true },
+    ] as Record<string, unknown>[];
+    expect(GeminiLiveWebSocketPlugin.payloadsForClientSocket(payloads)).toEqual(payloads);
+  });
+
   it("maps goAway with timeLeft", () => {
     const msg = { goAway: { timeLeft: "30s" } } as LiveServerMessage;
     expect(GeminiLiveWebSocketPlugin.messageToClientPayload(msg)).toEqual([

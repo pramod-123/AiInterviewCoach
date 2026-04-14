@@ -429,6 +429,8 @@ body {
   justify-content: center;
   flex-shrink: 0;
   color: var(--primary);
+  line-height: 0;
+  box-sizing: border-box;
 }
 
 .sp-card-compact .capture-icon {
@@ -439,10 +441,18 @@ body {
 
 .capture-icon .material-symbols-outlined {
   font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
 }
 
 .sp-card-compact .capture-icon .material-symbols-outlined {
   font-size: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .capture-label {

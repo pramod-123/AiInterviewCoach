@@ -35,7 +35,7 @@ export function mergeGeminiRealtimeRecordsToUtterances(
     if (!t) {
       return;
     }
-    const recMs = Math.max(0, offsetFromBridgeOpenMs - anchorDeltaMs);
+    const recMs = Math.max(0, offsetFromBridgeOpenMs + anchorDeltaMs);
     const endSec = recMs / 1000;
     const startSec = lastEndSec;
     const segEnd = Math.max(startSec + 0.05, endSec);

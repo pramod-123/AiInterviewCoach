@@ -117,6 +117,8 @@ model InterviewLiveSession {
   liveInterviewerEnabled Boolean @default(true)
   /// Wall-clock `Date.now()` when the realtime voice-to-model bridge first opened (anchor for chunk offsets).
   voiceRealtimeBridgeOpenedAtWallMs BigInt?
+  /// Server `Date.now()` when the extension POSTed `/recording-clock` right after `MediaRecorder.start` (true t≈0 vs first video-chunk DB time, which can lag by the timeslice).
+  recordingStartedAtWallMs BigInt?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 

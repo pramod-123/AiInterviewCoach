@@ -5,6 +5,11 @@ const btnLoad = document.getElementById("btnLoad");
 const btnOpenPopup = document.getElementById("btnOpenPopup");
 const btnShare = document.getElementById("btnShare");
 const btnExportPrint = document.getElementById("btnExportPrint");
+const sessSidebarBulk = document.getElementById("sessSidebarBulk");
+const btnBulkDeleteSessions = document.getElementById("btnBulkDeleteSessions");
+const bulkDeleteLabel = document.getElementById("bulkDeleteLabel");
+const btnSelectAllSessions = document.getElementById("btnSelectAllSessions");
+const btnClearSessionSelection = document.getElementById("btnClearSessionSelection");
 const listStatus = document.getElementById("listStatus");
 const sessionList = document.getElementById("sessionList");
 const sessSidebar = document.getElementById("sessSidebar");
@@ -108,6 +113,9 @@ function applySidebarCollapsed(collapsed) {
   }
   if (sessionList) {
     sessionList.setAttribute("aria-hidden", collapsed ? "true" : "false");
+  }
+  if (sessSidebarBulk) {
+    sessSidebarBulk.setAttribute("aria-hidden", collapsed ? "true" : "false");
   }
 }
 
@@ -431,6 +439,59 @@ function disconnectPostProcessListeners() {
   clearPostProcessPoll();
 }
 
+/** Clears the session detail panel and list selection (e.g. after delete). */
+function clearSessionDetailUi() {
+  selectedSessionId = null;
+  for (const el of sessionList?.querySelectorAll(".sess-session-item") ?? []) {
+    if (el instanceof HTMLElement) {
+      el.classList.remove("is-selected");
+    }
+  }
+  if (detailEmpty) {
+    detailEmpty.classList.remove("hidden");
+  }
+  if (detailWorkspace) {
+    detailWorkspace.classList.add("hidden");
+  }
+  if (breadcrumbSessionId) {
+    breadcrumbSessionId.textContent = "—";
+  }
+  if (footerSessionId) {
+    footerSessionId.textContent = "";
+  }
+  if (detailTitle) {
+    detailTitle.textContent = "—";
+  }
+  if (detailSub) {
+    detailSub.textContent = "—";
+    delete detailSub.dataset.baseLine;
+  }
+  updateSessionVideo("", 0);
+  if (transcriptLines) {
+    transcriptLines.replaceChildren();
+  }
+  if (transcriptBadge) {
+    transcriptBadge.textContent = "—";
+  }
+  sessMomentCard?.classList.add("hidden");
+  momentByMomentLines?.replaceChildren();
+  clearDimensionsMount();
+  clearFeedbackLayoutMounts();
+  document.getElementById("sessTokenMeta")?.remove();
+  sessTokenMetaHost?.replaceChildren();
+  const qDetails = document.getElementById("sessQuestionDetails");
+  const qBody = document.getElementById("detailQuestionBody");
+  if (qDetails) {
+    qDetails.hidden = true;
+  }
+  if (qBody) {
+    qBody.replaceChildren();
+  }
+  if (detailPanel) {
+    detailPanel.replaceChildren();
+  }
+}
+
 /**
  * @param {HTMLElement} host
  */
@@ -696,9 +757,6 @@ function wirePostProcessStream(sessionId, jobId, detailInner, rv) {
   }
   postProcessWebSocket = ws;
   ws.addEventListener("message", (ev) => {
-    if (selectedSessionId !== sessionId) {
-      return;
-    }
     let data;
     try {
       data = JSON.parse(ev.data);
@@ -706,6 +764,17 @@ function wirePostProcessStream(sessionId, jobId, detailInner, rv) {
       return;
     }
     if (!data || data.type !== "post_process") {
+      return;
+    }
+    if (data.phase === "deleted") {
+      disconnectPostProcessListeners();
+      if (selectedSessionId === sessionId) {
+        clearSessionDetailUi();
+      }
+      void fetchSessions();
+      return;
+    }
+    if (selectedSessionId !== sessionId) {
       return;
     }
     if (data.phase === "processing" && typeof data.jobId === "string") {
@@ -1125,6 +1194,7 @@ function renderSessionList(sessions) {
     div.className = "sess-empty-list";
     div.textContent = "No sessions found.";
     sessionList.appendChild(div);
+    updateBulkDeleteToolbar();
     return;
   }
 
@@ -1132,26 +1202,43 @@ function renderSessionList(sessions) {
     if (!s || typeof s !== "object") {
       continue;
     }
-    const row = /** @type {Record<string, unknown>} */ (s);
-    const id = typeof row.id === "string" ? row.id : "";
+    const sess = /** @type {Record<string, unknown>} */ (s);
+    const id = typeof sess.id === "string" ? sess.id : "";
     if (!id) {
       continue;
     }
-    const job = row.postProcessJob && typeof row.postProcessJob === "object"
-      ? /** @type {Record<string, unknown>} */ (row.postProcessJob)
+    const job = sess.postProcessJob && typeof sess.postProcessJob === "object"
+      ? /** @type {Record<string, unknown>} */ (sess.postProcessJob)
       : null;
     const jobId = job && typeof job.id === "string" ? job.id : "";
     const jobStatus = job && typeof job.status === "string" ? job.status : "";
-    const status = typeof row.status === "string" ? row.status : "—";
-    const updatedAt = typeof row.updatedAt === "string" ? row.updatedAt : "";
-    const preview = typeof row.questionPreview === "string" ? row.questionPreview.trim() : "";
+    const status = typeof sess.status === "string" ? sess.status : "—";
+    const updatedAt = typeof sess.updatedAt === "string" ? sess.updatedAt : "";
+    const preview = typeof sess.questionPreview === "string" ? sess.questionPreview.trim() : "";
     const videoChunkCount =
-      typeof row.videoChunkCount === "number" && Number.isFinite(row.videoChunkCount)
-        ? row.videoChunkCount
+      typeof sess.videoChunkCount === "number" && Number.isFinite(sess.videoChunkCount)
+        ? sess.videoChunkCount
         : 0;
-    const liveIv = row.liveInterviewerEnabled !== false;
+    const liveIv = sess.liveInterviewerEnabled !== false;
 
     const titleText = preview || truncate(id, 36) || "Session";
+
+    const rowEl = document.createElement("div");
+    rowEl.className = "sess-session-row";
+
+    const checkWrap = document.createElement("div");
+    checkWrap.className = "sess-session-row-check";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "sess-session-select-cb";
+    cb.dataset.sessionId = id;
+    cb.setAttribute("aria-label", `Select session ${truncate(id, 14)} for bulk delete`);
+    cb.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    checkWrap.appendChild(cb);
+    rowEl.appendChild(checkWrap);
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "sess-session-item";
@@ -1204,8 +1291,10 @@ function renderSessionList(sessions) {
       void selectSession(id, jobId, videoChunkCount, preview, updatedAt, status, jobStatus);
     });
 
-    sessionList.appendChild(btn);
+    rowEl.appendChild(btn);
+    sessionList.appendChild(rowEl);
   }
+  updateBulkDeleteToolbar();
 }
 
 async function fetchSessions() {
@@ -1231,6 +1320,68 @@ async function fetchSessions() {
   setListStatus(`${data.length} session(s).`, false);
   renderSessionList(data);
   selectSessionFromQueryIfPresent();
+}
+
+/**
+ * @param {string} sessionId
+ * @param {{ silent?: boolean }} [opts]
+ * @returns {Promise<"ok" | "missing" | "error">}
+ */
+async function deleteLiveSessionOnServer(sessionId, opts = {}) {
+  const silent = Boolean(opts.silent);
+  const base = apiBase();
+  const res = await fetch(`${base}/api/live-sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
+  if (res.status === 404) {
+    if (!silent) {
+      setListStatus("Session already removed (not found on server).", true);
+    }
+    return "missing";
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body === "object" && typeof body.error === "string") {
+        msg = body.error;
+      }
+    } catch {
+      /* ignore */
+    }
+    if (!silent) {
+      setListStatus(msg, true);
+    }
+    return "error";
+  }
+  return "ok";
+}
+
+function getCheckedSessionIds() {
+  if (!sessionList) {
+    return [];
+  }
+  const out = [];
+  for (const el of sessionList.querySelectorAll("input.sess-session-select-cb:checked")) {
+    if (el instanceof HTMLInputElement) {
+      const id = typeof el.dataset.sessionId === "string" ? el.dataset.sessionId.trim() : "";
+      if (id) {
+        out.push(id);
+      }
+    }
+  }
+  return out;
+}
+
+function updateBulkDeleteToolbar() {
+  const ids = getCheckedSessionIds();
+  const n = ids.length;
+  if (btnBulkDeleteSessions) {
+    btnBulkDeleteSessions.disabled = n === 0;
+  }
+  if (bulkDeleteLabel) {
+    bulkDeleteLabel.textContent = n === 0 ? "Delete selected" : `Delete selected (${n})`;
+  }
 }
 
 /**
@@ -1556,6 +1707,73 @@ btnShare?.addEventListener("click", async () => {
 
 btnExportPrint?.addEventListener("click", () => {
   window.print();
+});
+
+sessionList?.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t instanceof HTMLInputElement && t.classList.contains("sess-session-select-cb")) {
+    updateBulkDeleteToolbar();
+  }
+});
+
+btnSelectAllSessions?.addEventListener("click", () => {
+  for (const el of sessionList?.querySelectorAll("input.sess-session-select-cb") ?? []) {
+    if (el instanceof HTMLInputElement) {
+      el.checked = true;
+    }
+  }
+  updateBulkDeleteToolbar();
+});
+
+btnClearSessionSelection?.addEventListener("click", () => {
+  for (const el of sessionList?.querySelectorAll("input.sess-session-select-cb") ?? []) {
+    if (el instanceof HTMLInputElement) {
+      el.checked = false;
+    }
+  }
+  updateBulkDeleteToolbar();
+});
+
+btnBulkDeleteSessions?.addEventListener("click", () => {
+  const ids = getCheckedSessionIds();
+  if (ids.length === 0) {
+    return;
+  }
+  const n = ids.length;
+  const ok = window.confirm(
+    `Permanently delete ${n} session(s)?\n\nThis removes recordings, code snapshots, transcripts, evaluations, and all server files for each session. This cannot be undone.`,
+  );
+  if (!ok) {
+    return;
+  }
+  void (async () => {
+    let deleted = 0;
+    let missing = 0;
+    let errors = 0;
+    for (const id of ids) {
+      const outcome = await deleteLiveSessionOnServer(id, { silent: true });
+      if (outcome === "ok") {
+        deleted += 1;
+      } else if (outcome === "missing") {
+        missing += 1;
+      } else {
+        errors += 1;
+      }
+    }
+    const clearedSelection = ids.some((id) => id === selectedSessionId);
+    if (clearedSelection) {
+      disconnectPostProcessListeners();
+      clearSessionDetailUi();
+    }
+    if (errors > 0) {
+      setListStatus(`Deleted ${deleted}; ${missing} already gone; ${errors} failed — check API or connection.`, true);
+    } else if (missing > 0) {
+      setListStatus(`Deleted ${deleted} session(s). ${missing} were already removed.`, false);
+    } else {
+      setListStatus(`Deleted ${deleted} session(s).`, false);
+    }
+    await fetchSessions();
+  })();
 });
 
 footJumpVideo?.addEventListener("click", () => {

@@ -524,6 +524,118 @@ body {
   color: var(--text-muted);
 }
 
+.sess-sidebar-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 14px 10px;
+  border-bottom: 1px solid var(--border-dark);
+  flex-shrink: 0;
+}
+
+.sess-sidebar.is-collapsed .sess-sidebar-bulk {
+  display: none;
+}
+
+.sess-bulk-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(180, 35, 24, 0.45);
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.sess-bulk-delete-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.sess-bulk-delete-btn:not(:disabled):hover {
+  border-color: rgba(180, 35, 24, 0.65);
+  background: rgba(180, 35, 24, 0.12);
+}
+
+.sess-bulk-delete-btn .material-icons-round {
+  font-size: 18px;
+}
+
+html[data-theme="dark"] .sess-bulk-delete-btn {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.35);
+  background: rgba(127, 29, 29, 0.22);
+}
+
+html[data-theme="dark"] .sess-bulk-delete-btn:not(:disabled):hover {
+  border-color: rgba(252, 165, 165, 0.5);
+  background: rgba(127, 29, 29, 0.32);
+}
+
+.sess-sidebar-bulk-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.sess-link-btn {
+  padding: 4px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sess-link-btn:hover {
+  color: var(--text);
+}
+
+.sess-session-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border-dark);
+}
+
+.sess-session-row-check {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  padding: 18px 4px 0 12px;
+}
+
+.sess-session-select-cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.sess-session-row .sess-session-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.sess-session-row:hover .sess-session-item:not(.is-selected) {
+  background: var(--surface-raised);
+}
+
 .sess-sidebar-list {
   flex: 1 1 0;
   overflow-x: hidden;
@@ -539,7 +651,7 @@ body {
 .sess-session-item {
   width: 100%;
   text-align: left;
-  padding: 14px 16px;
+  padding: 14px 16px 14px 8px;
   border: none;
   border-bottom: 1px solid var(--border-dark);
   border-left: 4px solid transparent;
@@ -548,10 +660,6 @@ body {
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
   font: inherit;
-}
-
-.sess-session-item:hover {
-  background: rgba(22, 22, 24, 0.65);
 }
 
 .sess-session-item.is-selected {
@@ -956,6 +1064,28 @@ body {
 
 .sess-action-btn-primary:hover {
   filter: brightness(1.08);
+}
+
+.sess-action-btn-danger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.45);
+  background: rgba(180, 35, 24, 0.06);
+}
+
+.sess-action-btn-danger:hover {
+  border-color: rgba(180, 35, 24, 0.65);
+  background: rgba(180, 35, 24, 0.1);
+}
+
+html[data-theme="dark"] .sess-action-btn-danger {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.35);
+  background: rgba(127, 29, 29, 0.22);
+}
+
+html[data-theme="dark"] .sess-action-btn-danger:hover {
+  border-color: rgba(252, 165, 165, 0.55);
+  background: rgba(127, 29, 29, 0.32);
 }
 
 .sess-empty-detail {

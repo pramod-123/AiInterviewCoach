@@ -477,8 +477,10 @@ export class PrismaAppDao implements IAppDao {
     };
   }
 
-  async deleteLiveSessionById(id: string): Promise<void> {
-    await this.db.interviewLiveSession.deleteMany({ where: { id } });
+  async deleteLiveSessionById(id: string): Promise<number> {
+    await this.deleteJobsByLiveSessionId(id);
+    const r = await this.db.interviewLiveSession.deleteMany({ where: { id } });
+    return r.count;
   }
 
   async findLatestLiveSessionId(): Promise<string | null> {
@@ -505,6 +507,24 @@ export class PrismaAppDao implements IAppDao {
       return null;
     }
     return Number(row.voiceRealtimeBridgeOpenedAtWallMs);
+  }
+
+  async setLiveSessionRecordingStartedAtWallMsIfUnset(sessionId: string, wallMs: number): Promise<void> {
+    await this.db.interviewLiveSession.updateMany({
+      where: { id: sessionId, recordingStartedAtWallMs: null },
+      data: { recordingStartedAtWallMs: BigInt(wallMs) },
+    });
+  }
+
+  async getLiveSessionRecordingStartedAtWallMs(sessionId: string): Promise<number | null> {
+    const row = await this.db.interviewLiveSession.findUnique({
+      where: { id: sessionId },
+      select: { recordingStartedAtWallMs: true },
+    });
+    if (row?.recordingStartedAtWallMs == null) {
+      return null;
+    }
+    return Number(row.recordingStartedAtWallMs);
   }
 
   async insertLiveVoiceRealtimeAudioChunk(params: {

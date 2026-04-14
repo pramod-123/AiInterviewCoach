@@ -12,6 +12,7 @@ import {
   sendWebmFileWithRange,
 } from "../live-session/serveWebmRange.js";
 import type { LiveSessionPostProcessor } from "../services/LiveSessionPostProcessor.js";
+import { notifyPostProcessEvent } from "../live-session/postProcessEventsHub.js";
 
 type SessionIdParams = { Params: { id: string } };
 
@@ -65,6 +66,9 @@ export class LiveSessionRoutesController {
     app.patch<SessionIdParams>("/api/live-sessions/:id", (request, reply) =>
       this.handlePatchSession(request, reply),
     );
+    app.post<SessionIdParams>("/api/live-sessions/:id/recording-clock", (request, reply) =>
+      this.handleRecordingClock(request, reply),
+    );
     app.post<SessionIdParams>("/api/live-sessions/:id/video-chunk", (request, reply) =>
       this.handleVideoChunk(app, request, reply),
     );
@@ -73,6 +77,9 @@ export class LiveSessionRoutesController {
     );
     app.post<SessionIdParams>("/api/live-sessions/:id/end", (request, reply) =>
       this.handleEndSession(request, reply),
+    );
+    app.delete<SessionIdParams>("/api/live-sessions/:id", (request, reply) =>
+      this.handleDeleteSession(request, reply),
     );
   }
 
@@ -116,7 +123,7 @@ export class LiveSessionRoutesController {
       status: "ACTIVE",
       liveInterviewerEnabled,
       message:
-        "Live session created. POST video chunks to /api/live-sessions/:id/video-chunk and code to /api/live-sessions/:id/code-snapshot.",
+        "Live session created. POST /api/live-sessions/:id/recording-clock immediately after MediaRecorder.start, then video chunks and code snapshots.",
     });
   }
 
@@ -205,6 +212,28 @@ export class LiveSessionRoutesController {
       message: "Session updated.",
       questionLength: body.question.length,
     });
+  }
+
+  /**
+   * Marks server wall time for MediaRecorder t≈0 (call from the extension immediately after `tabRecorder.start`).
+   * Without this, Gemini/tab alignment uses the first uploaded chunk’s `createdAt`, which can be late by the
+   * timeslice (e.g. 10s), shifting mixed dialogue audio on the timeline.
+   */
+  private async handleRecordingClock(
+    request: FastifyRequest<SessionIdParams>,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const { id } = request.params;
+    const session = await this.db.getLiveSessionPatch(id);
+    if (!session) {
+      return void reply.code(404).send({ error: "Live session not found." });
+    }
+    if (session.status !== "ACTIVE") {
+      return void reply.code(410).send({ error: "Live session has ended." });
+    }
+    const wallMs = Date.now();
+    await this.db.setLiveSessionRecordingStartedAtWallMsIfUnset(id, wallMs);
+    return void reply.code(204).send();
   }
 
   private async handleVideoChunk(
@@ -366,6 +395,40 @@ export class LiveSessionRoutesController {
       message:
         "Live session closed; further uploads are rejected. Post-processing (merge, STT, transcript.srt) runs in the background — poll GET /api/live-sessions/:id for postProcessJob then GET /api/interviews/:jobId.",
     });
+  }
+
+  /**
+   * Removes the live session and its linked post-process job from the database (cascades dependent rows),
+   * then best-effort deletes `data/live-sessions/<id>/` and `data/uploads/<jobId>/` when a job existed.
+   */
+  private async handleDeleteSession(
+    request: FastifyRequest<SessionIdParams>,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const { id } = request.params;
+    const exists = await this.db.findLiveSessionIdForTools(id);
+    if (!exists) {
+      return void reply.code(404).send({ error: "Live session not found." });
+    }
+    const jobId = await this.db.findFirstJobIdByLiveSessionId(id);
+    const deleted = await this.runInTransaction(async (tx) => tx.deleteLiveSessionById(id));
+    if (deleted === 0) {
+      return void reply.code(404).send({ error: "Live session not found." });
+    }
+    notifyPostProcessEvent(id, { type: "post_process", phase: "deleted" });
+    if (jobId != null && jobId.length > 0) {
+      try {
+        await this.files.rm(this.paths.jobUploadDir(jobId), { recursive: true, force: true });
+      } catch (err) {
+        request.log.warn({ err, id, jobId }, "live session delete: failed to remove job upload directory");
+      }
+    }
+    try {
+      await this.files.rm(this.paths.liveSessionDir(id), { recursive: true, force: true });
+    } catch (err) {
+      request.log.warn({ err, id }, "live session delete: failed to remove session directory");
+    }
+    return void reply.code(204).send();
   }
 }
 

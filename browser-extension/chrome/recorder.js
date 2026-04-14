@@ -594,6 +594,24 @@ function captureActiveTabViaChromeApi() {
   });
 }
 
+/**
+ * Server stamps wall time for MediaRecorder t≈0 so Gemini/tab mix aligns (first video chunk DB time can lag by the timeslice).
+ */
+async function postRecordingClockToServer() {
+  if (!sessionId || !apiBase) {
+    return;
+  }
+  try {
+    const res = await fetch(`${apiBase}/api/live-sessions/${sessionId}/recording-clock`, { method: "POST" });
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json().catch(() => ({}));
+      log(`recording-clock HTTP ${res.status}: ${data.error || res.statusText}`);
+    }
+  } catch (e) {
+    log(`recording-clock failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function uploadVideoChunk(blob) {
   if (!sessionId || !apiBase) {
     return;
@@ -701,6 +719,7 @@ async function startTabCaptureFromStream(stream, opts = {}) {
   tabRecorder.start(sliceMs);
   recordingStartedPerfMs = performance.now();
   startRecordingWallClock();
+  await postRecordingClockToServer();
   syncCaptureUi();
   log(`Tab capture on (~${sliceMs / 1000}s chunks) in side panel`);
 }
@@ -1297,7 +1316,7 @@ async function init() {
       const micPromise = recordMic
         ? navigator.mediaDevices.getUserMedia({
             audio: {
-              echoCancellation: false,
+              echoCancellation: true,
               noiseSuppression: true,
               autoGainControl: true,
               channelCount: { ideal: 1 },

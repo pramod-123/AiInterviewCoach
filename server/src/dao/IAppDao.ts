@@ -91,7 +91,12 @@ export interface IAppDao {
     videoChunkCount: number;
     liveCodeSnapshotCount: number;
   } | null>;
-  deleteLiveSessionById(id: string): Promise<void>;
+  /**
+   * Deletes the linked post-process job row(s) for this session (cascades job children), then the
+   * live session row (cascades live video chunks, code snapshots, realtime PCM chunks).
+   * @returns Number of live session rows removed (0 or 1).
+   */
+  deleteLiveSessionById(id: string): Promise<number>;
   /** Most recently updated session id, or null if none. */
   findLatestLiveSessionId(): Promise<string | null>;
 
@@ -99,6 +104,10 @@ export interface IAppDao {
   setVoiceRealtimeBridgeOpenedAtIfUnset(sessionId: string, wallMs: number): Promise<void>;
   /** Millisecond wall time when the voice bridge opened; null if capture never started. */
   getVoiceRealtimeBridgeOpenedAtWallMs(sessionId: string): Promise<number | null>;
+  /** Sets `recordingStartedAtWallMs` once (extension calls right after tab MediaRecorder starts). */
+  setLiveSessionRecordingStartedAtWallMsIfUnset(sessionId: string, wallMs: number): Promise<void>;
+  /** Server wall ms for recording t≈0 when set; otherwise stitch falls back to first video chunk `createdAt`. */
+  getLiveSessionRecordingStartedAtWallMs(sessionId: string): Promise<number | null>;
   insertLiveVoiceRealtimeAudioChunk(params: {
     sessionId: string;
     pcmS16le: Buffer;

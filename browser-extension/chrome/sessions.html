@@ -71,6 +71,20 @@
             </button>
           </div>
         </div>
+        <div class="sess-sidebar-bulk" id="sessSidebarBulk" aria-label="Bulk session actions">
+          <button type="button" class="sess-bulk-delete-btn" id="btnBulkDeleteSessions" disabled title="Delete checked sessions">
+            <span class="material-icons-round" aria-hidden="true">delete_sweep</span>
+            <span id="bulkDeleteLabel">Delete selected</span>
+          </button>
+          <div class="sess-sidebar-bulk-links">
+            <button type="button" class="sess-link-btn" id="btnSelectAllSessions" title="Select all sessions in the list">
+              All
+            </button>
+            <button type="button" class="sess-link-btn" id="btnClearSessionSelection" title="Clear selection">
+              None
+            </button>
+          </div>
+        </div>
         <div class="sess-sidebar-list custom-scrollbar" id="sessionList"></div>
       </aside>
 

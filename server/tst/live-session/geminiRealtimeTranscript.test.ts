@@ -17,12 +17,12 @@ describe("mergeGeminiRealtimeRecordsToUtterances", () => {
     expect(u[0].speakerLabel).toBe("INTERVIEWEE");
     expect(u[0].segment.text).toBe("Hello");
     expect(u[0].segment.startSec).toBe(0);
-    expect(u[0].segment.endSec).toBeCloseTo(3, 5);
+    expect(u[0].segment.endSec).toBeCloseTo(7, 5);
 
     expect(u[1].speakerLabel).toBe("INTERVIEWER");
     expect(u[1].segment.text).toBe("Hi there");
-    expect(u[1].segment.startSec).toBeCloseTo(3, 5);
-    expect(u[1].segment.endSec).toBeCloseTo(6, 5);
+    expect(u[1].segment.startSec).toBeCloseTo(7, 5);
+    expect(u[1].segment.endSec).toBeCloseTo(10, 5);
   });
 
   it("flushes trailing unfinished text once", () => {

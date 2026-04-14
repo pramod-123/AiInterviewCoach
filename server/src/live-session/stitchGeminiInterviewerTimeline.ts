@@ -9,29 +9,23 @@ import { pcmS16leMonoDurationMs, readVoiceRealtimeAudioBridgeMeta, type VoiceRea
 const VOICE_REALTIME_AUDIO_DB_PAGE_SIZE = 10_000;
 
 /**
- * `bridgeOpenedAtWallMs - firstVideoChunk.createdAt` so model receive-times can be shifted
- * onto the recording timeline (best-effort; assumes capture starts before or near the voice bridge).
+ * `bridgeOpenedAtWallMs - recordingEpochWallMs` (ms). `recordingEpochWallMs` is
+ * {@link IAppDao.getLiveSessionRecordingStartedAtWallMs} when the extension POSTed `/recording-clock` right after
+ * `MediaRecorder.start`, else the first video chunk's `createdAt` (can lag the real t=0 by the recorder timeslice).
+ * Add the result to {@link VoiceRealtimeAudioChunkStitchRow.offsetFromBridgeOpenMs} for ms since recording start.
  */
 export async function computeRecordingAnchorDeltaMs(
   db: IAppDao,
   sessionId: string,
   bridgeOpenedAtWallMs: number,
 ): Promise<number> {
-  const createdAt = await db.getFirstLiveVideoChunkCreatedAt(sessionId);
-  if (!createdAt) {
+  const fromClock = await db.getLiveSessionRecordingStartedAtWallMs(sessionId);
+  const fromFirstChunk = (await db.getFirstLiveVideoChunkCreatedAt(sessionId))?.getTime();
+  const recordingEpochMs = fromClock ?? fromFirstChunk;
+  if (recordingEpochMs == null) {
     return 0;
   }
-  return Math.round(bridgeOpenedAtWallMs - createdAt.getTime());
-}
-
-/** Optional positive ms: place model PCM earlier on the recording timeline (speaker / delay tuning). */
-function readModelAudioAlignEarlyMs(): number {
-  const raw = process.env.LIVE_SESSION_MODEL_AUDIO_ALIGN_EARLY_MS;
-  if (raw == null || String(raw).trim() === "") {
-    return 0;
-  }
-  const n = Number.parseInt(String(raw).trim(), 10);
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  return Math.round(bridgeOpenedAtWallMs - recordingEpochMs);
 }
 
 type PlacedChunk = VoiceRealtimeAudioChunkStitchRow & {
@@ -86,11 +80,10 @@ export async function stitchGeminiInterviewerTimelineWav(params: {
   }));
 
   const anchorDeltaMs = await computeRecordingAnchorDeltaMs(db, sessionId, meta.bridgeOpenedAtWallMs);
-  const alignEarlyMs = readModelAudioAlignEarlyMs();
 
   const placed: PlacedChunk[] = chunks.map((c) => ({
     ...c,
-    offsetOnRecordingMs: Math.max(0, c.offsetFromBridgeOpenMs - anchorDeltaMs - alignEarlyMs),
+    offsetOnRecordingMs: Math.max(0, c.offsetFromBridgeOpenMs + anchorDeltaMs),
     durationMs: pcmS16leMonoDurationMs(c.bytes, c.sampleRate),
   }));
   placed.sort((a, b) => a.offsetOnRecordingMs - b.offsetOnRecordingMs);
