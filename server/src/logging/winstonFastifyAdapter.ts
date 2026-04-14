@@ -27,17 +27,39 @@ function redactFastifyLogObject(obj: Record<string, unknown>): Record<string, un
   return out;
 }
 
+function unescapeNewlines(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(/\\n/g, "\n");
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => unescapeNewlines(v));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = unescapeNewlines(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 function normalizePinoStyleArgs(args: unknown[]): { message: string; meta: Record<string, unknown> } {
   const [a, b] = args;
   if (typeof a === "string") {
-    return { message: a, meta: {} };
+    return { message: a.replace(/\\n/g, "\n"), meta: {} };
   }
   if (a && typeof a === "object" && typeof b === "string") {
-    const meta = redactFastifyLogObject({ ...(a as Record<string, unknown>) });
-    return { message: b, meta };
+    const meta = unescapeNewlines(redactFastifyLogObject({ ...(a as Record<string, unknown>) })) as Record<
+      string,
+      unknown
+    >;
+    return { message: b.replace(/\\n/g, "\n"), meta };
   }
   if (a && typeof a === "object") {
-    const o = redactFastifyLogObject({ ...(a as Record<string, unknown>) });
+    const o = unescapeNewlines(
+      redactFastifyLogObject({ ...(a as Record<string, unknown>) }),
+    ) as Record<string, unknown>;
     const msg =
       typeof o.msg === "string"
         ? String(o.msg)
@@ -47,7 +69,7 @@ function normalizePinoStyleArgs(args: unknown[]): { message: string; meta: Recor
     const { msg: _m, message: _msg, ...rest } = o;
     return { message: msg || JSON.stringify(rest), meta: rest };
   }
-  return { message: String(a), meta: {} };
+  return { message: String(a).replace(/\\n/g, "\n"), meta: {} };
 }
 
 /**

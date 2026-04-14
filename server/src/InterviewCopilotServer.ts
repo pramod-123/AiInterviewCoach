@@ -30,7 +30,10 @@ export class InterviewCopilotServer {
     speechToTextFactory?: SpeechToTextServiceFactory,
     evaluationFactory?: InterviewEvaluationServiceFactory,
   ) {
-    this.app = Fastify({ loggerInstance: buildFastifyLogger() });
+    this.app = Fastify({
+      loggerInstance: buildFastifyLogger(),
+      disableRequestLogging: true,
+    });
     this.paths = new AppPaths();
     this.speechToTextFactory = speechToTextFactory ?? new SpeechToTextServiceFactory();
     this.evaluationFactory =
