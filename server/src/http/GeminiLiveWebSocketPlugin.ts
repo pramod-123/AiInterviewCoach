@@ -347,7 +347,7 @@ export class GeminiLiveWebSocketPlugin {
                 /** Higher = longer sustained speech before start-of-speech commits — fewer false starts (noise, keyboard). */
                 prefixPaddingMs: 200,
               },
-              turnCoverage: TurnCoverage.TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO,
+              turnCoverage: TurnCoverage.TURN_INCLUDES_ONLY_ACTIVITY,
             },
           },
           callbacks: {
