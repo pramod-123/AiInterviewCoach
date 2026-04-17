@@ -14,6 +14,8 @@ server/node_modules/
 server/dist/
 server/coverage/
 server/data/
+# Local backups from server/scripts/sync-installed-data-to-workspace.sh
+server/data.backup-*/
 !server/media/.gitkeep
 server/media/*
 !server/media/.gitkeep

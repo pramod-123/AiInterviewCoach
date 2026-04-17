@@ -5,6 +5,7 @@ node_modules/
 dist/
 coverage/
 data/
+data.backup-*/
 .env
 *.log
 .venv-whisperx/
