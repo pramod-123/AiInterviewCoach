@@ -8,16 +8,16 @@ import {
   StartSensitivity,
   TurnCoverage,
 } from "@google/genai";
-import type { IAppDao } from "../../dao/IAppDao.js";
-import type { AppPaths } from "../../infrastructure/AppPaths.js";
-import { initRealtimeAudioCapture } from "../interviewBridgeCapture.js";
-import { LiveRealtimeBridgeHandler, type LiveRealtimeBridgeLogger } from "./LiveRealtimeBridgeHandler.js";
+import type { IAppDao } from "../../../dao/IAppDao.js";
+import type { AppPaths } from "../../../infrastructure/AppPaths.js";
+import { initRealtimeAudioCapture } from "../../interviewBridgeCapture.js";
+import { LiveRealtimeBridgeHandler, type LiveRealtimeBridgeLogger } from "../LiveRealtimeBridgeHandler.js";
 import { applyGeminiLiveClientJson } from "./geminiLiveClientInbound.js";
-import { LiveRealtimeModelOutputBatch } from "./LiveRealtimeModelOutputBatch.js";
+import { LiveRealtimeModelOutputBatch } from "../LiveRealtimeModelOutputBatch.js";
 import { geminiLiveMessageToClientPayload } from "./geminiLiveMessageMapper.js";
-import { buildGeminiLiveInterviewerSystemInstruction } from "../../prompts/buildGeminiLiveInterviewerSystemInstruction.js";
+import { buildGeminiLiveInterviewerSystemInstruction } from "../../../prompts/buildGeminiLiveInterviewerSystemInstruction.js";
 
-export { formatCandidateEditorSnapshotForGeminiLive } from "./geminiLiveEditorFormat.js";
+export { formatCandidateEditorSnapshotForGeminiLive } from "../geminiLiveEditorFormat.js";
 export type { GeminiLiveClientMessage } from "./geminiLiveClientInbound.js";
 
 /**
@@ -64,7 +64,7 @@ export class GeminiLiveBridgeHandler extends LiveRealtimeBridgeHandler {
       this.closeClientChannel(code, reason);
     };
 
-    const live = await this.db.getLiveSessionForGeminiWs(this.sessionId);
+    const live = await this.db.getLiveSessionForRealtimeBridge(this.sessionId);
     if (!live || live.status !== "ACTIVE") {
       this.closeClientChannel(1008, "Session not found or not ACTIVE");
       return false;

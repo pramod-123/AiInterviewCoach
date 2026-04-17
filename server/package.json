@@ -36,6 +36,7 @@
     "@google/genai": "^1.48.0",
     "@langchain/anthropic": "^0.3.15",
     "@langchain/core": "^0.3.40",
+    "@langchain/google-genai": "^0.1.12",
     "@langchain/openai": "^0.3.17",
     "@libsql/client": "^0.17.2",
     "@prisma/adapter-libsql": "^7.6.0",

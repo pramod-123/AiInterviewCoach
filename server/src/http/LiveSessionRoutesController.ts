@@ -14,7 +14,8 @@ import {
 } from "../live-session/serveWebmRange.js";
 import type { LiveSessionPostProcessor } from "../services/LiveSessionPostProcessor.js";
 import { notifyPostProcessEvent } from "../live-session/postProcessEventsHub.js";
-import { GeminiLiveBridgeHandler } from "../live-session/realtime/GeminiLiveBridgeHandler.js";
+import { GeminiLiveBridgeHandler } from "../live-session/realtime/gemini/GeminiLiveBridgeHandler.js";
+import { OpenAILiveBridgeHandler } from "../live-session/realtime/openai/OpenAILiveBridgeHandler.js";
 
 type SessionIdParams = { Params: { id: string } };
 
@@ -91,9 +92,36 @@ export class LiveSessionRoutesController {
   }
 
   /**
-   * WebSocket `/api/live-sessions/:id/realtime` (Gemini Live voice interviewer).
+   * WebSocket `/api/live-sessions/:id/realtime` (Gemini Live or OpenAI Realtime voice interviewer).
+   * Select provider with `LIVE_REALTIME_PROVIDER` (`gemini` default, or `openai`).
    */
   private handleInterviewWebSocket(socket: WebSocket, request: FastifyRequest<SessionIdParams>): void {
+    const provider = (process.env.LIVE_REALTIME_PROVIDER ?? "gemini").trim().toLowerCase();
+    if (provider === "openai") {
+      const apiKey = process.env.OPENAI_API_KEY?.trim();
+      if (!apiKey) {
+        socket.close(1013, "OPENAI_API_KEY not configured");
+        return;
+      }
+      const model = process.env.OPENAI_REALTIME_MODEL?.trim();
+      if (!model) {
+        socket.close(1013, "OPENAI_REALTIME_MODEL not configured");
+        return;
+      }
+      const voice = process.env.OPENAI_REALTIME_VOICE?.trim() ?? "alloy";
+      const handler = new OpenAILiveBridgeHandler(
+        request.params.id,
+        this.db,
+        this.paths,
+        model,
+        request.log,
+        apiKey,
+        voice,
+      );
+      void handler.connect(socket);
+      return;
+    }
+
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       socket.close(1013, "GEMINI_API_KEY not configured");

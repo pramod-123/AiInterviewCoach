@@ -70,7 +70,8 @@ export interface IAppDao {
   getLiveSessionContent(id: string): Promise<LiveSessionContent | null>;
   updateLiveSessionQuestion(id: string, question: string): Promise<void>;
   updateLiveSessionStatus(id: string, status: LiveSessionStatus): Promise<void>;
-  getLiveSessionForGeminiWs(id: string): Promise<{
+  /** Fields needed to authorize and configure `/api/live-sessions/:id/realtime` (any voice provider). */
+  getLiveSessionForRealtimeBridge(id: string): Promise<{
     id: string;
     status: LiveSessionStatus;
     liveInterviewerEnabled: boolean;

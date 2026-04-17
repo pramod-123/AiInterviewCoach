@@ -25,7 +25,7 @@ export function assertMandatoryInterviewApiConfig(
 
   if (!speechAnalysis) {
     throw new Error(
-      "Interview API requires speech-to-text and evaluation. Set STT_PROVIDER=remote or local (not none), EVALUATION_PROVIDER=llm|single-agent, and LLM_PROVIDER=openai|anthropic with matching API keys. For remote STT or OpenAI LLM: OPENAI_API_KEY and OPENAI_MODEL_ID. For Anthropic LLM: ANTHROPIC_API_KEY and ANTHROPIC_MODEL_ID. Remote Whisper uses whisper-1 in code.",
+      "Interview API requires speech-to-text and evaluation. Set STT_PROVIDER=remote or local (not none), EVALUATION_PROVIDER=llm|single-agent, and LLM_PROVIDER=openai|anthropic|gemini with matching API keys. For remote STT or OpenAI LLM: OPENAI_API_KEY and OPENAI_MODEL_ID. For Anthropic LLM: ANTHROPIC_API_KEY and ANTHROPIC_MODEL_ID. For Gemini LLM: GEMINI_API_KEY and GEMINI_MODEL_ID. Remote Whisper uses whisper-1 in code.",
     );
   }
 }

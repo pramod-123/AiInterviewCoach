@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LiveServerMessage } from "@google/genai";
-import { geminiLiveMessageToClientPayload } from "../../src/live-session/realtime/geminiLiveMessageMapper.js";
+import { geminiLiveMessageToClientPayload } from "../../src/live-session/realtime/gemini/geminiLiveMessageMapper.js";
 
 describe("geminiLiveMessageToClientPayload", () => {
   it("returns empty array for empty message", () => {

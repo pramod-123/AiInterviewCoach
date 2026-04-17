@@ -1,6 +1,6 @@
 import type { Session } from "@google/genai";
-import type { LiveRealtimeBridgeLogger } from "./LiveRealtimeBridgeHandler.js";
-import { formatCandidateEditorSnapshotForGeminiLive } from "./geminiLiveEditorFormat.js";
+import type { LiveRealtimeBridgeLogger } from "../LiveRealtimeBridgeHandler.js";
+import { formatCandidateEditorSnapshotForGeminiLive } from "../geminiLiveEditorFormat.js";
 
 /** Client → server JSON (UTF-8 text frames) for the Gemini Live bridge. */
 export type GeminiLiveClientMessage =

@@ -1,17 +1,18 @@
 import { AnthropicLlmClient } from "./AnthropicLlmClient.js";
+import { GeminiLlmClient } from "./GeminiLlmClient.js";
 import type { LlmClient } from "./LlmClient.js";
 import { OpenAiLlmClient } from "./OpenAiLlmClient.js";
 
 /**
  * Instantiates {@link LlmClient} from env. Backend is **`LLM_PROVIDER`**
- * (`openai` | `anthropic`) with matching API key.
+ * (`openai` | `anthropic` | `gemini`) with matching API key.
  */
 export class LlmClientFactory {
   static create(env: NodeJS.ProcessEnv = process.env): LlmClient {
     const configured = env.LLM_PROVIDER?.trim();
     if (!configured) {
       throw new Error(
-        'LLM_PROVIDER is required in .env (set to "openai" or "anthropic" with matching API key).',
+        'LLM_PROVIDER is required in .env (set to "openai", "anthropic", or "gemini" with matching API key).',
       );
     }
     const raw = configured.toLowerCase();
@@ -41,6 +42,19 @@ export class LlmClientFactory {
       }
       return client;
     }
-    throw new Error(`Unsupported LLM_PROVIDER "${raw}". Use exactly "openai" or "anthropic".`);
+    if (raw === "gemini") {
+      const client = GeminiLlmClient.tryCreate(env);
+      if (!client) {
+        if (!env.GEMINI_API_KEY?.trim()) {
+          throw new Error("GEMINI_API_KEY is not set but LLM_PROVIDER=gemini.");
+        }
+        if (!env.GEMINI_MODEL_ID?.trim()) {
+          throw new Error("GEMINI_MODEL_ID is not set but LLM_PROVIDER=gemini.");
+        }
+        throw new Error("Could not create Gemini LLM client.");
+      }
+      return client;
+    }
+    throw new Error(`Unsupported LLM_PROVIDER "${raw}". Use exactly "openai", "anthropic", or "gemini".`);
   }
 }

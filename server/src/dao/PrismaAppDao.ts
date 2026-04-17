@@ -389,7 +389,7 @@ export class PrismaAppDao implements IAppDao {
     });
   }
 
-  async getLiveSessionForGeminiWs(id: string): Promise<{
+  async getLiveSessionForRealtimeBridge(id: string): Promise<{
     id: string;
     status: LiveSessionStatus;
     liveInterviewerEnabled: boolean;

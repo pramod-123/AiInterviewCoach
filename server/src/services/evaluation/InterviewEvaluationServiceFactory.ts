@@ -89,7 +89,7 @@ function logCompleteEvaluationInputFromEnv(env: NodeJS.ProcessEnv): boolean {
 
 /**
  * Builds an {@link InterviewEvaluator}. Set **`EVALUATION_PROVIDER`** to **`llm`** (one-shot {@link InterviewEvaluationService})
- * or **`single-agent`** ({@link SingleAgentInterviewEvaluator}). Set **`LLM_PROVIDER`** to **`openai`** | **`anthropic`**
+ * or **`single-agent`** ({@link SingleAgentInterviewEvaluator}). Set **`LLM_PROVIDER`** to **`openai`** | **`anthropic`** | **`gemini`**
  * with the matching API key (shared with {@link LlmClientFactory} and WhisperX role mapping, not evaluation-specific).
  * Throws if env / API keys / database are not configured — the HTTP server should not start.
  * See `agents/single-agent-evaluator/AGENT.md` for the tool-based evaluator contract.
@@ -113,13 +113,13 @@ export class InterviewEvaluationServiceFactory {
     const configured = this.env.EVALUATION_PROVIDER?.trim();
     if (!configured) {
       throw new Error(
-        'EVALUATION_PROVIDER is required in .env: "llm" (one-shot) or "single-agent" (tool agent). Set LLM_PROVIDER=openai|anthropic and the matching API key.',
+        'EVALUATION_PROVIDER is required in .env: "llm" (one-shot) or "single-agent" (tool agent). Set LLM_PROVIDER=openai|anthropic|gemini and the matching API key.',
       );
     }
     const raw = configured.toLowerCase();
     if (raw !== "llm" && raw !== "single-agent") {
       throw new Error(
-        `Unsupported EVALUATION_PROVIDER "${raw}". Use exactly "llm" or "single-agent" with LLM_PROVIDER=openai|anthropic.`,
+        `Unsupported EVALUATION_PROVIDER "${raw}". Use exactly "llm" or "single-agent" with LLM_PROVIDER=openai|anthropic|gemini.`,
       );
     }
 

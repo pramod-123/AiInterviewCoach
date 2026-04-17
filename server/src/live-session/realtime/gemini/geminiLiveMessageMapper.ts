@@ -2,7 +2,7 @@ import type { LiveServerMessage, LiveServerSessionResumptionUpdate } from "@goog
 import type {
   LiveRealtimeModelOutputPayload,
   LiveRealtimeSessionResumptionUpdatePayload,
-} from "./LiveRealtimeModelOutputBatch.js";
+} from "../LiveRealtimeModelOutputBatch.js";
 
 /** Browser payload for `sessionResumptionUpdate` (`newHandle` stays server-only). */
 export function clientPayloadSessionResumptionUpdate(

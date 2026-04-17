@@ -70,7 +70,8 @@ Set these in `server/.env` (or via installer prompts) depending on your provider
 - `OPENAI_API_KEY` (recommended default): used for remote STT (`whisper-1`) and OpenAI-backed evaluation.
 - `ANTHROPIC_API_KEY` (optional): used when `LLM_PROVIDER=anthropic`.
 - `HF_TOKEN` (optional but recommended for WhisperX diarization): Hugging Face token used by pyannote/WhisperX flows.
-- `GEMINI_API_KEY` (optional): enables Gemini Live WebSocket interviewer features.
+- `GEMINI_API_KEY` (optional): enables Gemini Live WebSocket interviewer features (default when `LIVE_REALTIME_PROVIDER` is unset or `gemini`). With `LLM_PROVIDER=gemini`, set **`GEMINI_MODEL_ID`** (text/chat for evaluation; distinct from **`GEMINI_LIVE_MODEL`** for voice).
+- `OPENAI_REALTIME_MODEL` (optional): required when `LIVE_REALTIME_PROVIDER=openai` — Realtime model id (e.g. `gpt-4o-realtime-preview-2024-12-17`). Uses the same `OPENAI_API_KEY` as other OpenAI features.
 
 Where to get each key:
 
@@ -81,7 +82,8 @@ Where to get each key:
 
 Notes:
 
-- If you use Anthropic for evaluation, set `LLM_PROVIDER=anthropic`.
+- For the live voice bridge, set `LIVE_REALTIME_PROVIDER=openai` to use OpenAI Realtime (otherwise Gemini Live with `GEMINI_API_KEY` + `GEMINI_LIVE_MODEL`). Optional: `OPENAI_REALTIME_VOICE` (default `alloy`).
+- If you use Anthropic for evaluation, set `LLM_PROVIDER=anthropic`. For Gemini text evaluation and tool agents, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, and `GEMINI_MODEL_ID`.
 - If you use local STT, set `STT_PROVIDER=local` and keep `LOCAL_WHISPER_EXECUTABLE` configured.
 - Keep `.env` private and never commit real keys.
 

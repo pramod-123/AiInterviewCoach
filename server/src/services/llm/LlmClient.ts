@@ -19,7 +19,7 @@ export type LlmCompletionResult = {
 };
 
 /**
- * Minimal contract for rubric / JSON-style chat completion. Provider SDKs implement this (OpenAI, Anthropic, …).
+ * Minimal contract for rubric / JSON-style chat completion. Provider SDKs implement this (OpenAI, Anthropic, Gemini, …).
  */
 export type LlmJsonChatParams = {
   system: string;
