@@ -15,6 +15,7 @@ import type {
   LiveSessionStatus,
   LiveVideoChunkItem,
   LiveVoiceRealtimeAudioChunkItem,
+  LiveVoiceRealtimeAudioChunkMeta,
   SpeechUtteranceInsert,
   SpeechUtteranceItem,
 } from "./dto.js";
@@ -576,6 +577,55 @@ export class PrismaAppDao implements IAppDao {
       },
       orderBy: { sequence: "asc" },
       take,
+    });
+    return rows.map((r) => ({
+      sequence: r.sequence,
+      pcmS16le: Buffer.from(r.pcmS16le),
+      sampleRate: r.sampleRate,
+      receivedAtWallMs: Number(r.receivedAtWallMs),
+      offsetFromBridgeOpenMs: r.offsetFromBridgeOpenMs,
+    }));
+  }
+
+  async listLiveVoiceRealtimeAudioChunkMetas(sessionId: string): Promise<LiveVoiceRealtimeAudioChunkMeta[]> {
+    const rows = await this.db.$queryRaw<
+      Array<{
+        sequence: number;
+        sampleRate: number;
+        receivedAtWallMs: bigint;
+        offsetFromBridgeOpenMs: number;
+        pcmByteLength: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        "sequence" AS "sequence",
+        "sampleRate" AS "sampleRate",
+        "receivedAtWallMs" AS "receivedAtWallMs",
+        "offsetFromBridgeOpenMs" AS "offsetFromBridgeOpenMs",
+        length("pcmS16le") AS "pcmByteLength"
+      FROM "live_voice_realtime_audio_chunks"
+      WHERE "sessionId" = ${sessionId}
+      ORDER BY "sequence" ASC
+    `);
+    return rows.map((r) => ({
+      sequence: r.sequence,
+      sampleRate: r.sampleRate,
+      receivedAtWallMs: Number(r.receivedAtWallMs),
+      offsetFromBridgeOpenMs: r.offsetFromBridgeOpenMs,
+      pcmByteLength: Number(r.pcmByteLength),
+    }));
+  }
+
+  async findLiveVoiceRealtimeAudioChunksBySequences(
+    sessionId: string,
+    sequences: readonly number[],
+  ): Promise<LiveVoiceRealtimeAudioChunkItem[]> {
+    if (sequences.length === 0) {
+      return [];
+    }
+    const rows = await this.db.liveVoiceRealtimeAudioChunk.findMany({
+      where: { sessionId, sequence: { in: [...sequences] } },
+      orderBy: { sequence: "asc" },
     });
     return rows.map((r) => ({
       sequence: r.sequence,

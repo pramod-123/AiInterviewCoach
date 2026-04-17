@@ -57,6 +57,15 @@ export type LiveVoiceRealtimeAudioChunkItem = {
   offsetFromBridgeOpenMs: number;
 };
 
+/** Row shape for stitch ordering without loading `pcmS16le` blobs. */
+export type LiveVoiceRealtimeAudioChunkMeta = {
+  sequence: number;
+  sampleRate: number;
+  receivedAtWallMs: number;
+  offsetFromBridgeOpenMs: number;
+  pcmByteLength: number;
+};
+
 export type InterviewAudioItem = {
   jobId: string;
   filePath: string;

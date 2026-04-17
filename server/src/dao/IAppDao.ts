@@ -13,6 +13,7 @@ import type {
   LiveSessionStatus,
   LiveVideoChunkItem,
   LiveVoiceRealtimeAudioChunkItem,
+  LiveVoiceRealtimeAudioChunkMeta,
   SpeechUtteranceInsert,
   SpeechUtteranceItem,
 } from "./dto.js";
@@ -127,6 +128,18 @@ export interface IAppDao {
     afterSequence: number | null;
     limit: number;
   }): Promise<LiveVoiceRealtimeAudioChunkItem[]>;
+
+  /**
+   * All voice chunk rows for a session as lightweight metadata (byte length only, no PCM blob).
+   * Used by stitch to sort and batch-fetch PCM without holding the full session in RAM.
+   */
+  listLiveVoiceRealtimeAudioChunkMetas(sessionId: string): Promise<LiveVoiceRealtimeAudioChunkMeta[]>;
+
+  /** Load PCM rows for the given `sequence` values (e.g. one stitch batch). */
+  findLiveVoiceRealtimeAudioChunksBySequences(
+    sessionId: string,
+    sequences: readonly number[],
+  ): Promise<LiveVoiceRealtimeAudioChunkItem[]>;
 
   // --- Live video chunks ---
   findLiveVideoChunksOrdered(sessionId: string): Promise<LiveVideoChunkItem[]>;

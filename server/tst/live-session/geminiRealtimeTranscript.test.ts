@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { transcriptionToSrt } from "../../src/media/transcriptFormatting.js";
 import {
   mergeGeminiRealtimeRecordsToUtterances,
   speechTranscriptionFromGeminiUtterances,
@@ -46,5 +47,21 @@ describe("speechTranscriptionFromGeminiUtterances", () => {
     expect(tr.segments).toHaveLength(1);
     expect(tr.fullText).toContain("A");
     expect(tr.segments[0]!.speakerLabel).toBe("INTERVIEWEE");
+  });
+
+  it("round-trips to non-empty SRT for post-process transcript.srt (same path as LiveSessionPostProcessor realtime branch)", () => {
+    const u = mergeGeminiRealtimeRecordsToUtterances(
+      [
+        { role: "input", text: "Hello", finished: true, offsetFromBridgeOpenMs: 1000 },
+        { role: "output", text: "Hi", finished: true, offsetFromBridgeOpenMs: 2000 },
+      ],
+      0,
+    );
+    const tr = speechTranscriptionFromGeminiUtterances(u);
+    const srt = transcriptionToSrt(tr).trim();
+    expect(srt.length).toBeGreaterThan(0);
+    expect(srt).toMatch(/^1\n/);
+    expect(srt).toContain("Hello");
+    expect(srt).toContain("Hi");
   });
 });
