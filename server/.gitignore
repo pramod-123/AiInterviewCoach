@@ -7,6 +7,7 @@ coverage/
 data/
 data.backup-*/
 .env
+.app-runtime-config.json
 *.log
 .venv-whisperx/
 

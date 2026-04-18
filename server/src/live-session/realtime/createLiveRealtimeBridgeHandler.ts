@@ -11,7 +11,7 @@ export type CreateLiveRealtimeBridgeResult =
 
 /**
  * Builds the upstream voice bridge for `/api/live-sessions/:id/realtime` from
- * merged env (`process.env` + `data/app-runtime-config.json` overrides):
+ * merged env (`process.env` + `server/.app-runtime-config.json` overrides):
  * `LIVE_REALTIME_PROVIDER` (`gemini` default, or `openai`) and related keys.
  */
 export function createLiveRealtimeBridgeHandler(

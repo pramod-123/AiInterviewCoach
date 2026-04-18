@@ -26,13 +26,16 @@ export class AppPaths {
     return path.join(this.liveSessionsDir, sessionId);
   }
 
-  /** JSON file for API keys and models editable from the extension UI (overrides `.env` when set). */
+  /**
+   * Hidden JSON next to `server/.env`: API keys and models (extension UI / PUT /api/app-config).
+   * Non-empty fields override `process.env` when merged.
+   */
   runtimeAppConfigPath(): string {
-    return path.join(this.dataDir, "app-runtime-config.json");
+    return path.join(this.serverRoot, ".app-runtime-config.json");
   }
 
-  /** Built-in preset option lists when the runtime file omits an array (shipped with the server). */
+  /** Shipped preset lists when the runtime file omits an array (`server/.app-runtime-config.defaults.json`). */
   runtimeAppConfigDefaultsPath(): string {
-    return path.join(this.dataDir, "app-runtime-config.defaults.json");
+    return path.join(this.serverRoot, ".app-runtime-config.defaults.json");
   }
 }

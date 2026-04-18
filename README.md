@@ -10,7 +10,7 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 |------|---------|
 | `server/` | Node.js + Fastify app, Prisma (SQLite), live-session merge/remux, STT/eval, prompts |
 | `server/tst/` | Vitest unit tests |
-| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, **Sessions** UI + **Server config** (writes `server/data/app-runtime-config.json` overrides) |
+| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, **Sessions** UI + **Server config** (writes `server/.app-runtime-config.json` overrides) |
 | `browser-extension/firefox/` | Reserved for a future Firefox build |
 | `demo/` | README screenshots, animated GIF preview, and muted MP4 walkthrough; not used by the server |
 | `server/media/` | Optional local files for pipeline/API tests (ignored by git except `.gitkeep`) |

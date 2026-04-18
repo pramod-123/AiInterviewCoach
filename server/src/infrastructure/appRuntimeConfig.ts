@@ -3,8 +3,8 @@ import fsp from "node:fs/promises";
 import type { AppPaths } from "./AppPaths.js";
 
 /**
- * Preset option lists when `app-runtime-config.json` omits an array live in
- * {@link AppPaths.runtimeAppConfigDefaultsPath} (`data/app-runtime-config.defaults.json`).
+ * Preset option lists when `.app-runtime-config.json` omits an array live in
+ * {@link AppPaths.runtimeAppConfigDefaultsPath} (`server/.app-runtime-config.defaults.json`).
  */
 
 const EVAL_MODEL_OPTION_ID_RE = /^[a-zA-Z0-9._\-:]+$/;
@@ -154,7 +154,7 @@ function buildWhisperAllowlistFromRaw(whisperModelOptions: unknown): string[] {
 }
 
 /**
- * Shipped defaults (`app-runtime-config.defaults.json`), mtime-cached.
+ * Shipped defaults (`.app-runtime-config.defaults.json`), mtime-cached.
  * Whisper allowlist is derived from `whisperModelOptions` in that file (regex-validated only).
  */
 export function readRuntimeAppConfigDefaultsBundle(paths: AppPaths): RuntimeDefaultsBundle {
@@ -295,7 +295,7 @@ export function getSpeechToTextProviderMode(_paths: AppPaths | null): "local" | 
 }
 
 /**
- * `process.env` plus non-empty overrides from `app-runtime-config.json` (mtime-cached).
+ * `process.env` plus non-empty overrides from `.app-runtime-config.json` (mtime-cached).
  * Used for live realtime bridge, LLM evaluation, and Whisper model override.
  */
 export function getMergedAppEnv(paths: AppPaths): NodeJS.ProcessEnv {

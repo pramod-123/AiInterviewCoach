@@ -23,7 +23,7 @@
   var INNER_MAIN =
     '<main class="ac-main">' +
     '<section class="ac-card">' +
-    "<h2>API keys (stored in <code>server/data/app-runtime-config.json</code>)</h2>" +
+    "<h2>API keys (stored in <code>server/.app-runtime-config.json</code>)</h2>" +
     '<p class="ac-hint">Add a key to enable that vendor below. Leave blank to keep the current server value. Check “remove” to clear a stored key.</p>' +
     '<div class="ac-key-row"><label>OpenAI API key <span data-ic="openaiKeyBadge" class="ac-badge"></span> ' +
     '<input data-ic="openaiApiKey" type="password" autocomplete="new-password" placeholder="sk-…" /></label>' +
@@ -37,7 +37,7 @@
     "</section>" +
     '<section class="ac-card">' +
     "<h2>Voice bridge (WebSocket)</h2>" +
-    '<p class="ac-hint">Realtime provider lists both vendors; each choice stays disabled until that API key exists. Model and voice fields unlock per vendor API key. Choices come from <code>app-runtime-config.json</code> (<code>openaiRealtimeModelOptions</code>, …) or, when an array is omitted, from shipped <code>server/data/app-runtime-config.defaults.json</code>. To use another id, add it to the runtime file or edit the defaults file on the server.</p>' +
+    '<p class="ac-hint">Realtime provider lists both vendors; each choice stays disabled until that API key exists. Model and voice fields unlock per vendor API key. Choices come from <code>.app-runtime-config.json</code> (<code>openaiRealtimeModelOptions</code>, …) or, when an array is omitted, from shipped <code>server/.app-runtime-config.defaults.json</code>. To use another id, add it to the runtime file or edit the defaults file on the server.</p>' +
     "<label>Realtime provider " +
     '<select data-ic="liveRealtimeProvider">' +
     '<option value="">Select…</option>' +
@@ -68,7 +68,7 @@
     "</section>" +
     '<section class="ac-card">' +
     "<h2>Evaluation LLM</h2>" +
-    '<p class="ac-hint">LLM provider lists all vendors; each option unlocks when that API key exists. Models are chosen from <code>app-runtime-config.json</code> eval option arrays or from <code>server/data/app-runtime-config.defaults.json</code> when an array is omitted.</p>' +
+    '<p class="ac-hint">LLM provider lists all vendors; each option unlocks when that API key exists. Models are chosen from <code>.app-runtime-config.json</code> eval option arrays or from <code>server/.app-runtime-config.defaults.json</code> when an array is omitted.</p>' +
     "<label>LLM provider " +
     '<select data-ic="llmProvider">' +
     '<option value="">Select…</option>' +
@@ -98,7 +98,7 @@
     "</section>" +
     '<section class="ac-card">' +
     "<h2>Local speech-to-text (Whisper)</h2>" +
-    '<p class="ac-hint">Stored as <code>whisperModel</code> (merged as <code>WHISPER_MODEL</code>). Checkpoint list comes from <code>whisperModelOptions</code> in the runtime file or <code>app-runtime-config.defaults.json</code>. <strong>Default</strong> leaves <code>whisperModel</code> unset so <code>.env</code> / built-in default (<code>base</code>) applies.</p>' +
+    '<p class="ac-hint">Stored as <code>whisperModel</code> (merged as <code>WHISPER_MODEL</code>). Checkpoint list comes from <code>whisperModelOptions</code> in the runtime file or <code>server/.app-runtime-config.defaults.json</code>. <strong>Default</strong> leaves <code>whisperModel</code> unset so the Whisper default (<code>base</code>) applies.</p>' +
     "<label>Whisper model " +
     '<select data-ic="whisperModel">' +
     '<option value="">Default (.env / base)</option>' +

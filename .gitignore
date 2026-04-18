@@ -5,6 +5,7 @@
 *.log
 .env
 .env.*.local
+server/.app-runtime-config.json
 
 # Local SQLite at repo root (default DATABASE_URL in server/src/db.ts)
 /data/
