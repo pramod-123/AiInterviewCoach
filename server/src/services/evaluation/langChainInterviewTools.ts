@@ -5,9 +5,24 @@ import { DaoInterviewSessionTools } from "../../agent-tools/InterviewSessionTool
 import type { IAppDao } from "../../dao/IAppDao.js";
 import type { ToolResult } from "../../agent-tools/types.js";
 
-/** OpenAI structured-tool schemas require optional object fields to be nullable, not only `.optional()`. */
+/**
+ * Optional numeric tool args that may be sent as JSON `null`.
+ * Gemini rejects OpenAPI-style `type: ["number","null"]` from `z.number().nullable()`; coerce null
+ * away and keep a plain optional number in the emitted JSON Schema.
+ */
 function optionalEndTimeSecField() {
-  return z.number().nullable().optional();
+  return z.preprocess(
+    (v) => (v === null ? undefined : v),
+    z.number().optional(),
+  );
+}
+
+/** Same as {@link optionalEndTimeSecField} for optional string tool args (e.g. speaker filter). */
+function optionalSpeakerLabelField() {
+  return z.preprocess(
+    (v) => (v === null ? undefined : v),
+    z.string().optional(),
+  );
 }
 
 function normalizeOptionalEndSec(endTimeSec: number | null | undefined): number | undefined {
@@ -158,7 +173,7 @@ The same ToolResult is also provided as the tool message artifact (structured) f
             .number()
             .describe("Start of window in seconds on the same timeline as get_code_at."),
           endTimeSec: optionalEndTimeSecField().describe(
-            "End of window in seconds; must be >= startTimeSec when a number. Omit or null for no upper bound.",
+            "End of window in seconds; must be >= startTimeSec when a number. Omit for no upper bound.",
           ),
         }),
         responseFormat: "content_and_artifact",
@@ -205,15 +220,11 @@ The same ToolResult is also provided as the tool message artifact (structured) f
             .number()
             .describe("Start of query window in seconds on the job STT timeline (non-negative)."),
           endTimeSec: optionalEndTimeSecField().describe(
-            "End of window; must be >= startTimeSec when a number. Omit or null for all speech from startTimeSec onward.",
+            "End of window; must be >= startTimeSec when a number. Omit for all speech from startTimeSec onward.",
           ),
-          speakerLabel: z
-            .string()
-            .nullable()
-            .optional()
-            .describe(
-              "Optional filter: only utterances with this speaker label (case-insensitive; null/unknown speakers excluded when set). Omit or null for all speakers.",
-            ),
+          speakerLabel: optionalSpeakerLabelField().describe(
+            "Optional filter: only utterances with this speaker label (case-insensitive; unknown speakers excluded when set). Omit for all speakers.",
+          ),
         }),
         responseFormat: "content_and_artifact",
       },
