@@ -9,6 +9,7 @@ const btnClearSessionSelection = document.getElementById("btnClearSessionSelecti
 const listStatus = document.getElementById("listStatus");
 const sessionList = document.getElementById("sessionList");
 const sessSidebar = document.getElementById("sessSidebar");
+const btnSidebarReload = document.getElementById("btnSidebarReload");
 const btnSidebarToggle = document.getElementById("btnSidebarToggle");
 const sessionCountBadge = document.getElementById("sessionCountBadge");
 const detailPanel = document.getElementById("detailPanel");
@@ -1284,6 +1285,40 @@ function renderSessionList(sessions) {
   updateBulkDeleteToolbar();
 }
 
+/**
+ * Reload the sidebar list; if a session was selected and still exists, refresh its detail.
+ */
+async function reloadSessionsSidebar() {
+  const sid = selectedSessionId;
+  await fetchSessions();
+  if (!sid || !sessionList) {
+    return;
+  }
+  const escaped =
+    typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(sid) : sid;
+  const btn = sessionList.querySelector(`button.sess-session-item[data-session-id="${escaped}"]`);
+  if (!(btn instanceof HTMLButtonElement)) {
+    return;
+  }
+  const id = btn.dataset.sessionId ?? "";
+  const jobId = btn.dataset.jobId ?? "";
+  const jobStatus = btn.dataset.jobStatus ?? "";
+  const rawChunks = btn.dataset.videoChunks ?? "0";
+  const videoChunkCount = Number.parseInt(rawChunks, 10);
+  const preview = btn.dataset.preview ?? "";
+  const updatedAt = btn.dataset.updatedAt ?? "";
+  const status = btn.dataset.status ?? "—";
+  void selectSession(
+    id,
+    jobId,
+    Number.isFinite(videoChunkCount) ? videoChunkCount : 0,
+    preview,
+    updatedAt,
+    status,
+    jobStatus,
+  );
+}
+
 async function fetchSessions() {
   setListStatus("Loading…", false);
   await saveApiBase();
@@ -1389,7 +1424,7 @@ function selectSessionFromQueryIfPresent() {
   const btn = sessionList.querySelector(`button.sess-session-item[data-session-id="${escaped}"]`);
   if (!(btn instanceof HTMLButtonElement)) {
     setListStatus(
-      `Session ${truncate(want, 14)}… not in this list — check API base or open Sessions again after new runs.`,
+      `Session ${truncate(want, 14)}… not in this list — use the sidebar refresh button or check API base.`,
       true,
     );
     return;
@@ -1660,6 +1695,10 @@ function scrollToSel(sel) {
   const el = document.querySelector(sel);
   el?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
+btnSidebarReload?.addEventListener("click", () => {
+  void reloadSessionsSidebar();
+});
 
 btnSidebarToggle?.addEventListener("click", () => {
   if (!sessSidebar) {

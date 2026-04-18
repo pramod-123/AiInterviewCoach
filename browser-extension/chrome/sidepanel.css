@@ -251,10 +251,10 @@ body {
   background: transparent;
 }
 
+/* Single scroll: hero, options, Capture, Log, and feedback share one column (footer stays pinned). */
 .sp-scroll-body {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  max-height: min(46vh, 340px);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -504,15 +504,13 @@ body {
   line-height: 1.2;
 }
 
-/* Bounded log panel (scrolls internally) */
+/* Log follows Capture in the same scroll column; long lines scroll inside .log-scroll only */
 .sp-log-panel {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: clamp(104px, 30vh, 200px);
-  height: clamp(104px, 30vh, 200px);
-  margin: 0 14px;
+  margin: 0;
   padding: 8px 10px 8px;
   border-radius: 10px;
   background: var(--surface-container-highest);
@@ -581,8 +579,9 @@ body {
 }
 
 .log-scroll {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 72px;
+  max-height: min(42vh, 280px);
   overflow-y: auto;
   overflow-x: hidden;
   padding: 6px 6px 4px 2px;
@@ -593,17 +592,17 @@ body {
   font-family: ui-monospace, "JetBrains Mono", monospace;
 }
 
-/* Process status + interview result (scroll if tall) */
+/* Process status + interview result (same outer scroll; inner cap when tall) */
 .sp-feedback-stack {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: min(200px, 32vh);
+  max-height: min(220px, 36vh);
   overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 0 14px 8px;
+  padding: 0 0 4px;
 }
 
 #logEntries {
@@ -1152,14 +1151,7 @@ body {
   color: var(--on-surface-variant);
 }
 
-.sp-server-config-mount {
-  max-height: min(48vh, 380px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  margin: 0 -2px;
-  padding: 0 2px 4px;
-  border-radius: 8px;
-}
+/* Server config mount lives in #spServerSettingsScreen; height is from app-config flex chain (no max-height here). */
 
 /* Session actions — pinned below scroll area */
 .sp-actions {
