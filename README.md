@@ -10,7 +10,7 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 |------|---------|
 | `server/` | Node.js + Fastify app, Prisma (SQLite), live-session merge/remux, STT/eval, prompts |
 | `server/tst/` | Vitest unit tests |
-| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, local **Sessions** UI |
+| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, **Sessions** UI + **Server config** (writes `server/data/app-runtime-config.json` overrides) |
 | `browser-extension/firefox/` | Reserved for a future Firefox build |
 | `demo/` | README screenshots, animated GIF preview, and muted MP4 walkthrough; not used by the server |
 | `server/media/` | Optional local files for pipeline/API tests (ignored by git except `.gitkeep`) |
@@ -83,7 +83,7 @@ Notes:
 
 - For the live voice bridge, set `LIVE_REALTIME_PROVIDER=openai` to use OpenAI Realtime (otherwise Gemini Live with `GEMINI_API_KEY` + `GEMINI_LIVE_MODEL`). Optional: `OPENAI_REALTIME_VOICE` (default `alloy`).
 - If you use Anthropic for evaluation, set `LLM_PROVIDER=anthropic`. For Gemini text evaluation and tool agents, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, and `GEMINI_MODEL_ID`.
-- If you use local STT, set `STT_PROVIDER=local` and keep `LOCAL_WHISPER_EXECUTABLE` configured.
+- Speech-to-text always uses the **local Whisper CLI**; set `LOCAL_WHISPER_EXECUTABLE`, `WHISPER_MODEL` (e.g. `base`, `small`, `medium`), and related vars in `.env`.
 - Keep `.env` private and never commit real keys.
 
 ## Browser extension (LeetCode live capture)

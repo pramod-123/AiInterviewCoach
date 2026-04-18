@@ -10,6 +10,8 @@ import pino from "pino";
 import type { FastifyBaseLogger } from "fastify";
 import { appDao, closeAppDatabase, openAppDatabase } from "../src/db.js";
 import { mergeJsonPayload } from "../src/dao/dto.js";
+import { getMergedAppEnv } from "../src/infrastructure/appRuntimeConfig.js";
+import { AppPaths } from "../src/infrastructure/AppPaths.js";
 import { InterviewEvaluationServiceFactory } from "../src/services/evaluation/InterviewEvaluationServiceFactory.js";
 
 const token = process.argv[2]?.trim();
@@ -39,7 +41,8 @@ if (!prev) {
   process.exit(1);
 }
 
-const evaluationFactory = new InterviewEvaluationServiceFactory(process.env, appDao);
+const paths = new AppPaths();
+const evaluationFactory = new InterviewEvaluationServiceFactory(() => getMergedAppEnv(paths), appDao);
 const evaluator = evaluationFactory.create(log);
 
 console.log(JSON.stringify({ jobId, token, reevaluate: true }, null, 2));

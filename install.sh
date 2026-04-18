@@ -730,9 +730,9 @@ main() {
     fi
     if [[ "${choose_llm_index}" -eq 1 ]]; then
       llm_choice="anthropic"
-      say "Anthropic will run rubric evaluation (and related LLM calls). Speech-to-text uses local Whisper (STT_PROVIDER=local)."
+      say "Anthropic will run rubric evaluation (and related LLM calls). Speech-to-text uses local Whisper; set WHISPER_MODEL (or LOCAL_WHISPER_MODEL) in .env if you use the whisper venv."
       anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — optional for remote STT / OpenAI features (Enter to skip)")")"
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — optional for OpenAI LLM / features (Enter to skip)")")"
       if [[ -z "$openai_key" ]]; then
         say "No OpenAI key — add OPENAI_API_KEY in .env before using OpenAI-backed features."
       fi
@@ -764,7 +764,6 @@ main() {
     fi
   fi
   upsert_env_line "LLM_PROVIDER" "LLM_PROVIDER=${llm_choice}"
-  upsert_env_line "STT_PROVIDER" "STT_PROVIDER=local"
 
   if [[ -n "$openai_key" ]]; then
     upsert_env_line "OPENAI_API_KEY" "OPENAI_API_KEY=${openai_key}"
@@ -805,7 +804,7 @@ main() {
   if [[ "${INSTALL_SKIP_PYTHON_VENVS:-}" == "1" ]]; then
     say_dim "INSTALL_SKIP_PYTHON_VENVS=1: skipping openai-whisper venv."
     tick_done "openai-whisper venv skipped"
-  elif prompt_yn "Create venv and pip install openai-whisper (STT_PROVIDER=local; plain Whisper CLI, not WhisperX)?" "y"; then
+  elif prompt_yn "Create venv and pip install openai-whisper (set WHISPER_MODEL in .env if needed; plain CLI, not WhisperX)?" "y"; then
     python3 -m venv "${venv_whisper}"
     "${venv_whisper}/bin/pip" install -U pip setuptools wheel
     say_dim "Installing openai-whisper (CLI only; no pyannote / WhisperX)…"
@@ -1008,7 +1007,7 @@ EOS
   fi
   say_dim "Optional PATH: export PATH=\"${INSTALL_PREFIX}/bin:\${PATH}\""
   say ""
-  say_dim "Tweak ${INSTALL_PREFIX}/.env — EVALUATION_PROVIDER, GEMINI_*, … (STT_PROVIDER stays local.)"
+  say_dim "Tweak ${INSTALL_PREFIX}/.env — EVALUATION_PROVIDER, GEMINI_*, LOCAL_WHISPER_*, WHISPER_MODEL, … and Server config for API keys / models (speech-to-text is always local Whisper)."
   if [[ "${EXT_INSTALLED}" == true ]] && [[ -f "${EXT_DIR}/manifest.json" ]]; then
     say ""
     say "${C_ACCENT}Chrome:${C_RST} Extensions → Developer mode → Load unpacked → ${C_BOLD}${EXT_DIR}${C_RST}"

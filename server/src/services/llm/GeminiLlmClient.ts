@@ -10,7 +10,7 @@ import type { LlmClient, LlmCompletionResult, LlmJsonChatParams, LlmTokenUsage, 
  * Tool agents use {@link ChatGoogleGenerativeAI} from `@langchain/google-genai` (legacy `@google/generative-ai` stack).
  *
  * Env: **`GEMINI_API_KEY`**, **`GEMINI_MODEL_ID`** (e.g. `gemini-2.0-flash`), **`LLM_PROVIDER=gemini`**.
- * Audio STT for `transcribeFromAudioFile` is not supported here — use **`STT_PROVIDER=remote`** (OpenAI Whisper) or **`local`**.
+ * Audio STT for `transcribeFromAudioFile` is not supported here — transcription uses the **local Whisper CLI**, not Gemini.
  */
 export class GeminiLlmClient implements LlmClient {
   getProviderId(): string {
@@ -51,7 +51,7 @@ export class GeminiLlmClient implements LlmClient {
 
   async transcribeFromAudioFile(_audioFilePath: string): Promise<SpeechTranscription> {
     throw new Error(
-      "Gemini LlmClient does not implement audio.transcriptions; use STT_PROVIDER=remote with OPENAI_API_KEY (Whisper) or STT_PROVIDER=local.",
+      "Gemini LlmClient does not implement audio.transcriptions; speech-to-text uses the local Whisper CLI (LOCAL_WHISPER_EXECUTABLE, WHISPER_MODEL in .env).",
     );
   }
 

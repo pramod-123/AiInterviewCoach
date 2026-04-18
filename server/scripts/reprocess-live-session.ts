@@ -12,11 +12,13 @@ import pino from "pino";
 import type { FastifyBaseLogger } from "fastify";
 import { appDao, closeAppDatabase, openAppDatabase, runAppTransaction } from "../src/db.js";
 import { appFileStore } from "../src/appFileStore.js";
+import { getMergedAppEnv } from "../src/infrastructure/appRuntimeConfig.js";
 import { AppPaths } from "../src/infrastructure/AppPaths.js";
 import { LiveSessionPostProcessReset } from "../src/live-session/LiveSessionPostProcessReset.js";
 import { assertMandatoryInterviewApiConfig } from "../src/services/mandatoryInterviewApiEnv.js";
 import { InterviewEvaluationServiceFactory } from "../src/services/evaluation/InterviewEvaluationServiceFactory.js";
 import { LiveSessionPostProcessor } from "../src/services/LiveSessionPostProcessor.js";
+import { SpeechToTextServiceFactory } from "../src/services/speech-to-text/SpeechToTextServiceFactory.js";
 import { SpeechTranscriptionEvaluationOrchestratorFactory } from "../src/services/SpeechTranscriptionEvaluationOrchestratorFactory.js";
 
 const sessionId = process.argv[2]?.trim();
@@ -42,9 +44,10 @@ const { removedJobCount } = await new LiveSessionPostProcessReset(appDao, paths,
 );
 log.info({ sessionId, removedJobCount, sessionStatus: session.status }, "Reset live session post-process before reprocess");
 
-const evaluationFactory = new InterviewEvaluationServiceFactory(process.env, appDao);
+const evaluationFactory = new InterviewEvaluationServiceFactory(() => getMergedAppEnv(paths), appDao);
+const sttFactory = new SpeechToTextServiceFactory(() => getMergedAppEnv(paths), () => paths);
 const speechAnalysis = new SpeechTranscriptionEvaluationOrchestratorFactory(
-  undefined,
+  sttFactory,
   evaluationFactory,
   log,
 ).create();

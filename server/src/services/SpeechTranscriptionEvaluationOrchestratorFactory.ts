@@ -10,9 +10,12 @@ import { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscription
  */
 export class SpeechTranscriptionEvaluationOrchestratorFactory {
   constructor(
-    private readonly speechToTextFactory: SpeechToTextServiceFactory = new SpeechToTextServiceFactory(),
+    private readonly speechToTextFactory: SpeechToTextServiceFactory = new SpeechToTextServiceFactory(
+      () => process.env,
+      () => null,
+    ),
     private readonly evaluationFactory: InterviewEvaluationServiceFactory = new InterviewEvaluationServiceFactory(
-      process.env,
+      () => process.env,
       appDao,
     ),
     private readonly evaluationPromptLog?: FastifyBaseLogger,
@@ -20,7 +23,7 @@ export class SpeechTranscriptionEvaluationOrchestratorFactory {
   ) {}
 
   /**
-   * @throws If `STT_PROVIDER` / API keys do not yield a working speech-to-text service.
+   * @throws If speech-to-text / evaluation cannot be constructed (e.g. missing local Whisper or LLM keys).
    */
   create(): SpeechTranscriptionEvaluationOrchestrator {
     const stt = this.speechToTextFactory.create();

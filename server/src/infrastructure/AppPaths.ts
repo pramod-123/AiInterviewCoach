@@ -25,4 +25,9 @@ export class AppPaths {
   liveSessionDir(sessionId: string): string {
     return path.join(this.liveSessionsDir, sessionId);
   }
+
+  /** JSON file for API keys and models editable from the extension UI (overrides `.env` when set). */
+  runtimeAppConfigPath(): string {
+    return path.join(this.dataDir, "app-runtime-config.json");
+  }
 }

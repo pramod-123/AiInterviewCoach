@@ -1825,6 +1825,85 @@ if (detailWorkspace && !detailWorkspace.dataset.seekDelegationBound) {
   });
 }
 
+const sessSettingsBackdrop = document.getElementById("sessSettingsBackdrop");
+const sessSettingsDrawer = document.getElementById("sessSettingsDrawer");
+const btnSessSettings = document.getElementById("btnSessSettings");
+const btnSessSettingsClose = document.getElementById("btnSessSettingsClose");
+const sessServerConfigRoot = document.getElementById("sessServerConfigRoot");
+const linkAppConfig = document.getElementById("linkAppConfig");
+
+/** @type {{ reload: () => Promise<void>; syncFromParent: () => void } | null} */
+let sessServerConfigCtl = null;
+
+function setSessSettingsDrawerOpen(open) {
+  if (!sessSettingsBackdrop || !sessSettingsDrawer) {
+    return;
+  }
+  sessSettingsBackdrop.classList.toggle("hidden", !open);
+  sessSettingsDrawer.classList.toggle("hidden", !open);
+  sessSettingsBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
+  sessSettingsDrawer.setAttribute("aria-hidden", open ? "false" : "true");
+  document.body.classList.toggle("sess-settings-open", open);
+  btnSessSettings?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function openSessSettingsDrawer() {
+  setSessSettingsDrawerOpen(true);
+  if (typeof window.ICMountServerConfigUI !== "function" || !sessServerConfigRoot) {
+    return;
+  }
+  sessServerConfigCtl = window.ICMountServerConfigUI({
+    mountPoint: sessServerConfigRoot,
+    toolbar: "actions",
+    compact: true,
+    getApiBase: apiBase,
+    setApiBase: (normalized) => {
+      if (apiBaseInput) {
+        apiBaseInput.value = normalized;
+      }
+    },
+    persistApiBase: async (normalized) => {
+      await chrome.storage.local.set({ apiBase: normalized });
+    },
+  });
+  void sessServerConfigCtl.reload();
+}
+
+function closeSessSettingsDrawer() {
+  setSessSettingsDrawerOpen(false);
+}
+
+btnSessSettings?.addEventListener("click", () => {
+  const willOpen = Boolean(sessSettingsDrawer?.classList.contains("hidden"));
+  if (willOpen) {
+    openSessSettingsDrawer();
+  } else {
+    closeSessSettingsDrawer();
+  }
+});
+
+linkAppConfig?.addEventListener("click", () => {
+  openSessSettingsDrawer();
+});
+
+btnSessSettingsClose?.addEventListener("click", () => {
+  closeSessSettingsDrawer();
+});
+
+sessSettingsBackdrop?.addEventListener("click", () => {
+  closeSessSettingsDrawer();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") {
+    return;
+  }
+  if (!sessSettingsDrawer || sessSettingsDrawer.classList.contains("hidden")) {
+    return;
+  }
+  closeSessSettingsDrawer();
+});
+
 void loadSettings().then(() => {
   void fetchSessions();
 });

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="theme.js"></script>
+    <title>AI Interview Copilot — Server config</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+    <link rel="stylesheet" href="sessions.css" />
+    <link rel="stylesheet" href="app-config.css" />
+  </head>
+  <body>
+    <header class="sess-header">
+      <div class="sess-header-inner">
+        <div class="sess-brand">
+          <img class="sess-logo" src="icons/icon-48.png" alt="" width="32" height="32" />
+          <h1 class="sess-brand-title">Interview <span class="accent">Copilot</span></h1>
+        </div>
+        <nav class="sess-nav" aria-label="Primary">
+          <a href="sessions.html" class="sess-nav-link">Sessions</a>
+          <span class="is-active">Server config</span>
+        </nav>
+        <div class="sess-header-tools">
+          <button type="button" class="sess-theme-btn" id="btnThemeToggle" title="Appearance" aria-label="Toggle light and dark mode">
+            <span class="material-icons-round" aria-hidden="true">light_mode</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div id="icServerConfigRoot"></div>
+
+    <script src="server-config-ui.js"></script>
+    <script>
+      (function () {
+        var btnThemeToggle = document.getElementById("btnThemeToggle");
+        function syncThemeToggle() {
+          if (!btnThemeToggle || typeof window.ICTheme === "undefined") {
+            return;
+          }
+          var dark = window.ICTheme.get() === "dark";
+          var icon = btnThemeToggle.querySelector(".material-icons-round");
+          if (icon) {
+            icon.textContent = dark ? "light_mode" : "dark_mode";
+          }
+          btnThemeToggle.title = dark ? "Switch to light mode" : "Switch to dark mode";
+        }
+        btnThemeToggle &&
+          btnThemeToggle.addEventListener("click", function () {
+            window.ICTheme && window.ICTheme.toggle();
+            syncThemeToggle();
+          });
+        document.addEventListener("ic-theme-change", syncThemeToggle);
+        syncThemeToggle();
+      })();
+    </script>
+  </body>
+</html>

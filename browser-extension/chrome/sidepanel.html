@@ -17,6 +17,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="sidepanel.css" />
+    <link rel="stylesheet" href="app-config.css" />
     <link rel="stylesheet" href="vendor/prism/prism-code-theme.css" />
     <link rel="stylesheet" href="prism-fence-tokens.css" />
   </head>
@@ -91,6 +92,14 @@
                   <code>GEMINI_API_KEY</code> + <code>GEMINI_LIVE_MODEL</code>).</span
                 >
               </label>
+              <div class="sp-settings-divider" role="presentation"></div>
+              <h3 class="sp-server-config-heading">Server config</h3>
+              <p class="sp-server-config-lead">
+                API base URL, voice bridge, API keys, Whisper model, and evaluation models (same as Sessions → Server
+                config). STT is always local Whisper; model can also be set in server <code>.env</code> as
+                <code>WHISPER_MODEL</code>.
+              </p>
+              <div id="spServerConfigRoot" class="sp-server-config-mount"></div>
             </div>
 
             <div id="sideHelpPanel" class="sp-panel-toggle hidden" role="region" aria-label="Help">
@@ -180,6 +189,7 @@
     <script src="markdownRender.js"></script>
     <script src="resultView.js"></script>
     <script src="voiceInterviewerRealtimeBridge.js"></script>
+    <script src="server-config-ui.js"></script>
     <script src="recorder.js"></script>
   </body>
 </html>

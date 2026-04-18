@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
+import type { AppEnvResolver } from "../../infrastructure/appEnvResolver.js";
 import { PromptLoader } from "../../prompts/PromptLoader.js";
 import type { IAppDao } from "../../dao/IAppDao.js";
 import { LlmClientFactory } from "../llm/LlmClientFactory.js";
@@ -99,18 +100,19 @@ function logCompleteEvaluationInputFromEnv(env: NodeJS.ProcessEnv): boolean {
  */
 export class InterviewEvaluationServiceFactory {
   constructor(
-    private readonly env: NodeJS.ProcessEnv = process.env,
+    private readonly resolveEnv: AppEnvResolver = () => process.env,
     private readonly appDb: IAppDao,
   ) {}
 
   create(promptLog?: FastifyBaseLogger): InterviewEvaluator {
+    const env = this.resolveEnv();
     const loader = new PromptLoader();
     const loadPrompts = () => ({
       systemPrompt: loader.loadSync(SYSTEM_PROMPT_FILE),
       userPromptTemplate: loader.loadSync(USER_PROMPT_FILE),
     });
 
-    const configured = this.env.EVALUATION_PROVIDER?.trim();
+    const configured = env.EVALUATION_PROVIDER?.trim();
     if (!configured) {
       throw new Error(
         'EVALUATION_PROVIDER is required in .env: "llm" (one-shot) or "single-agent" (tool agent). Set LLM_PROVIDER=openai|anthropic|gemini and the matching API key.',
@@ -123,16 +125,16 @@ export class InterviewEvaluationServiceFactory {
       );
     }
 
-    const llm = LlmClientFactory.create(this.env);
+    const llm = LlmClientFactory.create(env);
 
     const base = {
       provider: llm.getProviderId(),
       loadPrompts,
       promptLog,
-      evaluationTemperature: evaluationTemperatureFromEnv(this.env),
-      logAgentToolSteps: logAgentToolStepsFromEnv(this.env),
-      logCompleteEvaluationInput: logCompleteEvaluationInputFromEnv(this.env),
-      agentToolObservationMaxChars: agentToolObservationMaxCharsFromEnv(this.env),
+      evaluationTemperature: evaluationTemperatureFromEnv(env),
+      logAgentToolSteps: logAgentToolStepsFromEnv(env),
+      logCompleteEvaluationInput: logCompleteEvaluationInputFromEnv(env),
+      agentToolObservationMaxChars: agentToolObservationMaxCharsFromEnv(env),
     };
 
     if (raw === "single-agent") {
@@ -140,7 +142,7 @@ export class InterviewEvaluationServiceFactory {
         llm,
         this.appDb,
         base,
-        agentMaxIterationsFromEnv(this.env),
+        agentMaxIterationsFromEnv(env),
       );
     }
     return new InterviewEvaluationService(llm, base, this.appDb);

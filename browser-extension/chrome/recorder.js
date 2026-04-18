@@ -21,6 +21,9 @@ const btnSideTheme = document.getElementById("btnSideTheme");
 const sideSettingsPanel = document.getElementById("sideSettingsPanel");
 const sideHelpPanel = document.getElementById("sideHelpPanel");
 
+/** @type {{ reload: () => Promise<void>; syncFromParent: () => void } | null} */
+let spServerConfigCtl = null;
+
 const MIC_PERMISSION_HINT =
   "Side panel mic prompts often fail in Chrome. Fix: use the toolbar popup → Start interview (Allow mic there), or chrome://settings/content/microphone → allow this extension.";
 
@@ -1166,6 +1169,36 @@ async function stopAll(reason) {
   }
 }
 
+async function hydrateApiBaseFromStorageIfEmpty() {
+  if (apiBase.trim()) {
+    return;
+  }
+  const { apiBase: stored } = await chrome.storage.local.get(["apiBase"]);
+  if (typeof stored === "string" && stored.trim()) {
+    apiBase = stored.trim().replace(/\/$/, "");
+  }
+}
+
+function mountSpServerConfigOnce() {
+  const root = document.getElementById("spServerConfigRoot");
+  if (!root || typeof window.ICMountServerConfigUI !== "function" || spServerConfigCtl) {
+    return;
+  }
+  const defApi =
+    typeof window.IC_SERVER_CONFIG_DEFAULT_API === "string"
+      ? window.IC_SERVER_CONFIG_DEFAULT_API
+      : "http://127.0.0.1:3001";
+  spServerConfigCtl = window.ICMountServerConfigUI({
+    mountPoint: root,
+    compact: true,
+    getApiBase: () => (apiBase.trim() ? apiBase.trim().replace(/\/$/, "") : defApi),
+    setApiBase: (normalized) => {
+      apiBase = normalized;
+    },
+    persistApiBase: (normalized) => chrome.storage.local.set({ apiBase: normalized }),
+  });
+}
+
 async function resolveSessionConfig() {
   const params = new URLSearchParams(window.location.search);
   const fromUrlSid = params.get("sessionId");
@@ -1230,6 +1263,7 @@ function applyVoiceAiSessionPolicy() {
 
 async function init() {
   await resolveSessionConfig();
+  await hydrateApiBaseFromStorageIfEmpty();
 
   const { preferRecordMic, preferVoiceAi } = await chrome.storage.local.get([
     "preferRecordMic",
@@ -1255,6 +1289,7 @@ async function init() {
     clearResultSection();
     stopRecordingWallClock();
     syncCaptureUi();
+    mountSpServerConfigOnce();
     return;
   }
 
@@ -1267,6 +1302,8 @@ async function init() {
   if (metaEl) {
     metaEl.textContent = `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`;
   }
+
+  mountSpServerConfigOnce();
 
   if (chkMic) {
     chkMic.addEventListener("change", () => {
@@ -1291,6 +1328,10 @@ async function init() {
         setPanelOpen(sideHelpPanel, btnSideHelp, false);
       }
       setPanelOpen(sideSettingsPanel, btnSideSettings, willOpen);
+      if (willOpen && spServerConfigCtl) {
+        spServerConfigCtl.syncFromParent();
+        void spServerConfigCtl.reload();
+      }
     });
   }
   if (btnSideHelp && sideHelpPanel) {

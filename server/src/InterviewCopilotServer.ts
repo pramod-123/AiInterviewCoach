@@ -5,8 +5,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { appDao, runAppTransaction } from "./db.js";
 import { buildFastifyLogger } from "./logging/buildFastifyLogger.js";
 import { appFileStore } from "./appFileStore.js";
+import { AppRuntimeConfigRoutesController } from "./http/AppRuntimeConfigRoutesController.js";
 import { JobRoutesController } from "./http/JobRoutesController.js";
 import { LiveSessionRoutesController } from "./http/LiveSessionRoutesController.js";
+import { getMergedAppEnv } from "./infrastructure/appRuntimeConfig.js";
 import { AppPaths } from "./infrastructure/AppPaths.js";
 import { assertMandatoryInterviewApiConfig } from "./services/mandatoryInterviewApiEnv.js";
 import { InterviewEvaluationServiceFactory } from "./services/evaluation/InterviewEvaluationServiceFactory.js";
@@ -33,9 +35,11 @@ export class InterviewCopilotServer {
       disableRequestLogging: true,
     });
     this.paths = new AppPaths();
-    this.speechToTextFactory = speechToTextFactory ?? new SpeechToTextServiceFactory();
+    const resolveEnv = () => getMergedAppEnv(this.paths);
+    this.speechToTextFactory =
+      speechToTextFactory ?? new SpeechToTextServiceFactory(resolveEnv, () => this.paths);
     this.evaluationFactory =
-      evaluationFactory ?? new InterviewEvaluationServiceFactory(process.env, appDao);
+      evaluationFactory ?? new InterviewEvaluationServiceFactory(resolveEnv, appDao);
   }
 
   get instance(): FastifyInstance {
@@ -90,6 +94,7 @@ export class InterviewCopilotServer {
     );
     liveSessionRoutes.register(this.app);
     new LiveSessionPostProcessWebSocketPlugin(appDao).register(this.app);
+    new AppRuntimeConfigRoutesController(this.paths).register(this.app);
 
     const jobRoutes = new JobRoutesController(appDao);
     jobRoutes.register(this.app);

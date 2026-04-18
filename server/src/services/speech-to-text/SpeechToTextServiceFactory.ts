@@ -1,48 +1,42 @@
+import type { AppEnvResolver } from "../../infrastructure/appEnvResolver.js";
+import type { AppPaths } from "../../infrastructure/AppPaths.js";
+import { getSpeechToTextProviderMode } from "../../infrastructure/appRuntimeConfig.js";
 import { OpenAiLlmClient } from "../llm/OpenAiLlmClient.js";
 import type { ISpeechToTextService } from "./ISpeechToTextService.js";
 import { LocalWhisperSpeechToTextService } from "./LocalWhisperSpeechToTextService.js";
 import { LlmClientSpeechToTextService } from "./LlmClientSpeechToTextService.js";
 
-/** Canonical `STT_PROVIDER` values (case-insensitive). */
-export type SpeechToTextProviderName = "local" | "remote";
+export type AppPathsResolver = () => AppPaths | null;
 
 /**
- * Selects an {@link ISpeechToTextService} implementation from configuration.
- * Inject `env` in tests to avoid mutating `process.env`.
+ * Selects an {@link ISpeechToTextService} implementation.
+ * This build hardcodes {@link getSpeechToTextProviderMode} to **`local`** (Python Whisper CLI); the remote
+ * OpenAI path remains for maintenance. Model and executable come from merged env / `.env` (`WHISPER_MODEL`,
+ * `LOCAL_WHISPER_*`).
  */
 export class SpeechToTextServiceFactory {
-  constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
+  constructor(
+    private readonly resolveEnv: AppEnvResolver = () => process.env,
+    private readonly resolvePaths: AppPathsResolver = () => null,
+  ) {}
 
-  /**
-   * - **`remote`** (default): OpenAI Whisper via {@link OpenAiLlmClient.tryCreate}(env) and {@link LlmClientSpeechToTextService}.
-   *   Optional chunking: **`REMOTE_STT_MAX_CHUNK_BYTES`**.
-   * - **`local`**: Python `whisper` CLI (`LOCAL_WHISPER_*`).
-   */
   create(): ISpeechToTextService {
-    const mode = this.env.STT_PROVIDER?.toLowerCase().trim() ?? "remote";
-    if (mode === "none") {
-      throw new Error(
-        'STT_PROVIDER cannot be "none" for this API. Use "remote" (default) with OPENAI_API_KEY or "local" with the whisper CLI on PATH.',
-      );
-    }
+    const env = this.resolveEnv();
+    const paths = this.resolvePaths();
+    const mode = getSpeechToTextProviderMode(paths);
     if (mode === "local") {
-      return LocalWhisperSpeechToTextService.create(this.env);
+      return LocalWhisperSpeechToTextService.create(env);
     }
-    if (mode === "remote") {
-      const llm = OpenAiLlmClient.tryCreate(this.env);
-      if (!llm) {
-        if (!this.env.OPENAI_API_KEY?.trim()) {
-          throw new Error("OPENAI_API_KEY is not set but STT_PROVIDER=remote.");
-        }
-        if (!this.env.OPENAI_MODEL_ID?.trim()) {
-          throw new Error("OPENAI_MODEL_ID is not set but STT_PROVIDER=remote.");
-        }
-        throw new Error("Could not create OpenAI client for remote STT.");
+    const llm = OpenAiLlmClient.tryCreate(env);
+    if (!llm) {
+      if (!env.OPENAI_API_KEY?.trim()) {
+        throw new Error("OPENAI_API_KEY is not set for remote STT.");
       }
-      return LlmClientSpeechToTextService.create(llm, this.env);
+      if (!env.OPENAI_MODEL_ID?.trim()) {
+        throw new Error("OPENAI_MODEL_ID is not set for remote STT.");
+      }
+      throw new Error("Could not create OpenAI client for remote STT.");
     }
-    throw new Error(
-      `Unsupported STT_PROVIDER "${mode}". Use exactly "remote", "local", or omit STT_PROVIDER for remote.`,
-    );
+    return LlmClientSpeechToTextService.create(llm, env);
   }
 }

@@ -1115,6 +1115,36 @@ body {
   accent-color: var(--primary);
 }
 
+.sp-settings-divider {
+  height: 1px;
+  margin: 12px 0 10px;
+  background: var(--glass-border-soft);
+}
+
+.sp-server-config-heading {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--on-surface);
+}
+
+.sp-server-config-lead {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--on-surface-variant);
+}
+
+.sp-server-config-mount {
+  max-height: min(48vh, 380px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  margin: 0 -2px;
+  padding: 0 2px 4px;
+  border-radius: 8px;
+}
+
 /* Session actions — pinned below scroll area */
 .sp-actions {
   flex-shrink: 0;

@@ -27,7 +27,7 @@ export class AudioJobProcessor {
     if (!this.speechAnalysis) {
       await this.failJob(
         jobId,
-        "No speech-to-text provider is available. Set STT_PROVIDER=remote (default) or local with matching keys/CLI, or STT_PROVIDER=none.",
+        "No speech-to-text orchestrator is available. Configure LOCAL_WHISPER_EXECUTABLE and evaluation (LLM keys + EVALUATION_PROVIDER) so the interview API can start.",
       );
       return;
     }
