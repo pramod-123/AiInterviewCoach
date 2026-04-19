@@ -79,6 +79,7 @@ jobs:
           tar czf "../${ASSET}" \
             dist node_modules package.json package-lock.json \
             prisma prisma.config.ts .env.example \
+            .app-runtime-config.example.json .app-runtime-config.defaults.json \
             prompts agents \
             icons/icon-512.png
           if command -v sha256sum >/dev/null 2>&1; then

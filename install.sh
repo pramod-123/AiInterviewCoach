@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Installer: GitHub Releases (server tarball + Chrome extension), host dependencies
-# (Node 20+, ffmpeg/ffprobe, Python, unzip), optional Python venv (openai-whisper CLI for local STT — not WhisperX), Prisma.
+# (Node 20+, ffmpeg/ffprobe, Python 3, jq, unzip), openai-whisper CLI venv for local STT (required), Prisma.
 #
 # One-liner (public GitHub API):
 #   curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh | bash
@@ -24,6 +24,8 @@
 #   NO_COLOR / INSTALL_NO_COLOR   if set, disable ANSI styling (see https://no-color.org/)
 #   INSTALL_NO_CURL_PROGRESS      if set, hide curl transfer bar for large downloads
 #   INSTALL_SKIP_ZSH_SNIPPET      if 1, do not offer / append ~/.zshrc launcher shortcuts
+#   NODE_MIN_MAJOR                minimum Node major version (default 20)
+#   LIVE_REALTIME_PROVIDER        with INSTALL_CONSUMER_YES=1: openai | gemini (default openai)
 #
 set -euo pipefail
 
@@ -181,7 +183,7 @@ install_welcome() {
   printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_DIM}" "Installer · ${VERSION_WIRED}" "${C_ACCENT_B}" "${C_RST}"
   printf '%b╚══════════════════════════════════════════════════════════════╝%b\n' "${C_ACCENT_B}" "${C_RST}"
   say ""
-  say_dim "Release server + Chrome extension · host tools (ffmpeg/ffprobe, …) · optional openai-whisper venv (local STT) · SQLite & .env"
+  say_dim "Release server + Chrome extension · host tools (ffmpeg/ffprobe, Python 3, jq, …) · openai-whisper venv (required local STT) · SQLite, .env (HOST/PORT/DATABASE_URL), and .app-runtime-config.json"
   say ""
 }
 
@@ -227,26 +229,25 @@ trim_crlf() {
   printf '%s' "$s" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
 
-# Interactive menu on /dev/tty: ↑/↓ redraw in place; Enter / Space / 1 / 2 to confirm.
-# Sets global choose_llm_index: 0=OpenAI, 1=Anthropic.
-choose_llm_provider_menu() {
+# Interactive menus on /dev/tty: ↑/↓ · Enter/Space · number keys. Set globals choose_rt_index / choose_eval_index.
+
+# Sets choose_rt_index: 0=OpenAI realtime, 1=Gemini Live.
+choose_realtime_provider_menu() {
   local labels=(
-    "OpenAI — LLM evaluation and local STT via openai-whisper CLI (typical setup)"
-    "Anthropic — LLM evaluation only (OpenAI key optional for local STT / OpenAI-only features)"
+    "OpenAI — realtime / voice bridge (WebSocket)"
+    "Google Gemini — Live audio (WebSocket)"
   )
   local sel=0
   local n=${#labels[@]}
-  # Lines we paint each frame (must match printf count): title + rule + n options
   local menu_lines=$((2 + n))
   local drawn=0
   local k1 k2
   while true; do
     if [[ "$drawn" -eq 1 ]]; then
-      # Move cursor up to first menu line and redraw in place (no scroll spam)
       printf '\033[%dA' "$menu_lines" >/dev/tty
     fi
     drawn=1
-    printf '%b  %sLLM provider%s  %s↑/↓ move · Enter/Space confirm · 1/2 pick%s\n' "${C_BAR}" "${C_ACCENT_B}" "${C_RST}" "${C_DIM}" "${C_RST}" >/dev/tty
+    printf '%b  %sRealtime provider%s  %s↑/↓ · Enter/Space · 1/2%s\n' "${C_BAR}" "${C_ACCENT_B}" "${C_RST}" "${C_DIM}" "${C_RST}" >/dev/tty
     printf '%b  %s────────────────────────────────────────────────────────%s\n' "${C_BAR}" "${C_DIM}" "${C_RST}" >/dev/tty
     local i
     for ((i = 0; i < n; i++)); do
@@ -256,33 +257,85 @@ choose_llm_provider_menu() {
         printf '  %b    %s%s\033[K\n' "${C_MENU_LO}" "${labels[$i]}" "${C_RST}" >/dev/tty
       fi
     done
-    # Read one byte; Enter is often '\n' but some terminals/IDE shells need empty or different handling
     if ! IFS= read -r -s -n1 k1 </dev/tty 2>/dev/null; then
-      choose_llm_index=0
+      choose_rt_index=0
       printf '\n' >/dev/tty
       return 1
     fi
     if [[ "$k1" == $'\e' ]]; then
-      # CSI / SS3 arrows: ESC [ A / ESC [ B or ESC O A / ESC O B
       IFS= read -r -s -n2 k2 </dev/tty 2>/dev/null || true
       case "$k2" in
         '[A' | 'OA') sel=$(((sel + n - 1) % n)) ;;
         '[B' | 'OB') sel=$(((sel + 1) % n)) ;;
       esac
-    elif [[ "$k1" == $'\n' || "$k1" == $'\r' || -z "$k1" ]]; then
-      choose_llm_index=$sel
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == ' ' ]]; then
-      choose_llm_index=$sel
+    elif [[ "$k1" == $'\n' || "$k1" == $'\r' || -z "$k1" || "$k1" == ' ' ]]; then
+      choose_rt_index=$sel
       printf '\n' >/dev/tty
       return 0
     elif [[ "$k1" == '1' ]]; then
-      choose_llm_index=0
+      choose_rt_index=0
       printf '\n' >/dev/tty
       return 0
     elif [[ "$k1" == '2' ]]; then
-      choose_llm_index=1
+      choose_rt_index=1
+      printf '\n' >/dev/tty
+      return 0
+    fi
+  done
+}
+
+# Sets choose_eval_index: 0=OpenAI, 1=Gemini, 2=Anthropic (evaluation / rubric LLM only).
+choose_eval_llm_menu() {
+  local labels=(
+    "OpenAI — evaluation / rubric LLM"
+    "Google Gemini — evaluation / rubric LLM"
+    "Anthropic — evaluation / rubric LLM"
+  )
+  local sel=0
+  local n=${#labels[@]}
+  local menu_lines=$((2 + n))
+  local drawn=0
+  local k1 k2
+  while true; do
+    if [[ "$drawn" -eq 1 ]]; then
+      printf '\033[%dA' "$menu_lines" >/dev/tty
+    fi
+    drawn=1
+    printf '%b  %sEvaluation LLM%s  %s↑/↓ · Enter/Space · 1/2/3%s\n' "${C_BAR}" "${C_ACCENT_B}" "${C_RST}" "${C_DIM}" "${C_RST}" >/dev/tty
+    printf '%b  %s────────────────────────────────────────────────────────%s\n' "${C_BAR}" "${C_DIM}" "${C_RST}" >/dev/tty
+    local i
+    for ((i = 0; i < n; i++)); do
+      if [[ "$i" -eq "$sel" ]]; then
+        printf '  %b ▶ %s%s\033[K\n' "${C_MENU_HI}" "${labels[$i]}" "${C_RST}" >/dev/tty
+      else
+        printf '  %b    %s%s\033[K\n' "${C_MENU_LO}" "${labels[$i]}" "${C_RST}" >/dev/tty
+      fi
+    done
+    if ! IFS= read -r -s -n1 k1 </dev/tty 2>/dev/null; then
+      choose_eval_index=0
+      printf '\n' >/dev/tty
+      return 1
+    fi
+    if [[ "$k1" == $'\e' ]]; then
+      IFS= read -r -s -n2 k2 </dev/tty 2>/dev/null || true
+      case "$k2" in
+        '[A' | 'OA') sel=$(((sel + n - 1) % n)) ;;
+        '[B' | 'OB') sel=$(((sel + 1) % n)) ;;
+      esac
+    elif [[ "$k1" == $'\n' || "$k1" == $'\r' || -z "$k1" || "$k1" == ' ' ]]; then
+      choose_eval_index=$sel
+      printf '\n' >/dev/tty
+      return 0
+    elif [[ "$k1" == '1' ]]; then
+      choose_eval_index=0
+      printf '\n' >/dev/tty
+      return 0
+    elif [[ "$k1" == '2' ]]; then
+      choose_eval_index=1
+      printf '\n' >/dev/tty
+      return 0
+    elif [[ "$k1" == '3' ]]; then
+      choose_eval_index=2
       printf '\n' >/dev/tty
       return 0
     fi
@@ -445,6 +498,9 @@ linux_pkg_family() {
 # Dependency installation
 # ---------------------------------------------------------------------------
 
+# Server and Prisma require Node 20+ (see repo .nvmrc).
+NODE_MIN_MAJOR="${NODE_MIN_MAJOR:-20}"
+
 node_major() {
   node -p "Number(process.version.slice(1).split('.')[0])" 2>/dev/null || echo 0
 }
@@ -453,7 +509,69 @@ node_is_ok() {
   command -v node >/dev/null 2>&1 || return 1
   local m
   m="$(node_major)"
-  ((m >= 20))
+  ((m >= NODE_MIN_MAJOR))
+}
+
+node_version_line() {
+  if command -v node >/dev/null 2>&1; then
+    printf '%s' "$(node -v 2>/dev/null)"
+  else
+    printf '%s' "not found"
+  fi
+}
+
+# After brew/apt/dnf, PATH can still point at an old node; hash + nvm + this retry help.
+upgrade_node_on_host() {
+  local os
+  os="$(uname -s)"
+  if [[ "$os" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+    say_dim "Ensuring Homebrew Node is ${NODE_MIN_MAJOR}+ (upgrade or install)…"
+    brew upgrade node 2>/dev/null || brew install node || return 1
+    return 0
+  fi
+  if [[ "$os" != "Linux" ]]; then
+    return 1
+  fi
+  case "$(linux_pkg_family)" in
+    apt)
+      say_dim "Ensuring NodeSource nodejs package is installed/upgraded…"
+      sudo apt-get install -y nodejs
+      ;;
+    dnf)
+      say_dim "Re-running NodeSource 22.x setup and nodejs install…"
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -
+      sudo dnf install -y nodejs npm
+      ;;
+    *) return 1 ;;
+  esac
+  return 0
+}
+
+# After bulk OS install, PATH can hide Homebrew python3; this step reinstalls/upgrade distro Python for openai-whisper.
+upgrade_python_on_host() {
+  local os
+  os="$(uname -s)"
+  if [[ "$os" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+    say_dim "Ensuring Homebrew Python 3 (install or upgrade)…"
+    brew install python3 2>/dev/null || brew upgrade python3 || return 1
+    return 0
+  fi
+  if [[ "$os" != "Linux" ]]; then
+    return 1
+  fi
+  case "$(linux_pkg_family)" in
+    apt)
+      say_dim "Installing python3, venv, and pip (apt)…"
+      sudo apt-get update -qq
+      sudo apt-get install -y python3 python3-venv python3-pip
+      ;;
+    dnf)
+      say_dim "Installing python3 and pip (dnf)…"
+      sudo dnf install -y python3 python3-pip
+      ;;
+    *) return 1 ;;
+  esac
+  return 0
 }
 
 install_deps_macos() {
@@ -461,21 +579,24 @@ install_deps_macos() {
     say "Homebrew is not installed. Install it from https://brew.sh then re-run this script."
     return 1
   fi
-  say "brew install node ffmpeg python3 unzip"
-  brew install node ffmpeg python3 unzip
+  say "brew install node ffmpeg python3 jq unzip"
+  brew install node ffmpeg python3 jq unzip
   hash -r 2>/dev/null || true
 }
 
 install_deps_linux_apt() {
   say "Configuring Node.js 22.x (NodeSource) and system packages (sudo required)..."
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  sudo apt-get install -y nodejs ffmpeg python3 python3-venv python3-pip curl ca-certificates unzip build-essential
+  sudo apt-get install -y nodejs ffmpeg python3 python3-venv python3-pip curl ca-certificates jq unzip build-essential
   hash -r 2>/dev/null || true
 }
 
 install_deps_linux_dnf() {
-  say "Installing Node.js, ffmpeg, Python (sudo required)..."
-  sudo dnf install -y nodejs npm ffmpeg python3 python3-pip curl unzip gcc gcc-c++ make
+  say "Configuring Node.js 22.x (NodeSource RPM) and system packages (sudo required)..."
+  if ! curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -; then
+    say_warn "NodeSource RPM setup failed; installing distro nodejs (may be below ${NODE_MIN_MAJOR} on some releases)."
+  fi
+  sudo dnf install -y nodejs npm ffmpeg python3 python3-pip curl jq unzip gcc gcc-c++ make
   hash -r 2>/dev/null || true
 }
 
@@ -496,8 +617,8 @@ install_all_system_dependencies() {
     dnf) install_deps_linux_dnf ;;
     *)
       say "Unsupported Linux distribution for automatic install."
-      say "Install manually: Node.js 20+, ffmpeg, ffprobe, python3, python3-venv, pip, unzip, curl, tar."
-      say "Debian/Ubuntu example: use https://github.com/nodesource/distributions then apt install ffmpeg python3 python3-venv python3-pip unzip build-essential"
+      say "Install manually: Node.js ${NODE_MIN_MAJOR}+, ffmpeg, ffprobe, Python 3 (+ venv/pip on Debian), jq, unzip, curl, tar."
+      say "Debian/Ubuntu example: use https://github.com/nodesource/distributions then apt install ffmpeg python3 python3-venv python3-pip jq unzip build-essential"
       return 1
       ;;
   esac
@@ -529,11 +650,11 @@ require_cmds() {
 ensure_runtime_after_install() {
   maybe_nvm
   if ! node_is_ok; then
-    echo "Node.js 20+ is still not available after install (found: $(command -v node 2>/dev/null || echo none) $(node -v 2>/dev/null || true))." >&2
-    echo "Open a new terminal or run: hash -r" >&2
+    echo "Node.js ${NODE_MIN_MAJOR}+ is still not available after install (found: $(command -v node 2>/dev/null || echo none) $(node_version_line))." >&2
+    echo "Open a new terminal or run: hash -r  (with nvm: nvm install ${NODE_MIN_MAJOR} && nvm use ${NODE_MIN_MAJOR})" >&2
     return 1
   fi
-  require_cmds curl tar python3 ffmpeg ffprobe unzip || return 1
+  require_cmds curl tar python3 ffmpeg ffprobe jq unzip || return 1
   return 0
 }
 
@@ -544,17 +665,14 @@ ensure_runtime_after_install() {
 github_download_url() {
   local want_name="$1"
   local json_path="$2"
-  python3 -c "
-import json, sys
-want = sys.argv[1]
-with open(sys.argv[2], encoding='utf-8') as f:
-    data = json.load(f)
-for a in data.get('assets') or []:
-    if a.get('name') == want:
-        print(a['browser_download_url'])
-        raise SystemExit(0)
-raise SystemExit(1)
-" "${want_name}" "${json_path}"
+  local url
+  url="$(jq -r --arg name "${want_name}" '
+    (.assets // [])
+    | map(select(.name == $name))
+    | if length > 0 then .[0].browser_download_url else empty end
+  ' "${json_path}")"
+  [[ -n "${url}" && "${url}" != "null" ]] || return 1
+  printf '%s' "${url}"
 }
 
 upsert_env_line() {
@@ -571,6 +689,98 @@ upsert_env_line() {
   fi
   mv "$tmp" "$f"
   printf '%s\n' "$line" >>"$f"
+}
+
+# Consumer tarball layout: install root = server root (same dir as .env).
+ensure_app_runtime_config_file() {
+  if [[ -f .app-runtime-config.json ]]; then
+    return 0
+  fi
+  if [[ -f .app-runtime-config.example.json ]]; then
+    cp .app-runtime-config.example.json .app-runtime-config.json
+    return 0
+  fi
+  printf '%s\n' '{"version":1}' >.app-runtime-config.json
+}
+
+# Fill empty model / voice fields from shipped .app-runtime-config.defaults.json (first preset in each list).
+apply_shipped_runtime_model_defaults() {
+  local root="$1"
+  local cfg="${root}/.app-runtime-config.json"
+  local def="${root}/.app-runtime-config.defaults.json"
+  [[ -f "$def" ]] || return 0
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aic-rt-def.XXXXXX")"
+  if ! jq -s '
+    .[0] as $cfg | .[1] as $d
+    | $cfg
+    | .version = 1
+    | if (($cfg.openaiRealtimeModel // "") | tostring | length == 0) and (($d.openaiRealtimeModelOptions // []) | length > 0)
+        then .openaiRealtimeModel = $d.openaiRealtimeModelOptions[0] else . end
+    | if (($cfg.openaiRealtimeVoice // "") | tostring | length == 0) and (($d.openaiRealtimeVoiceOptions // []) | length > 0)
+        then .openaiRealtimeVoice = $d.openaiRealtimeVoiceOptions[0] else . end
+    | if (($cfg.geminiLiveModel // "") | tostring | length == 0) and (($d.geminiLiveModelOptions // []) | length > 0)
+        then .geminiLiveModel = $d.geminiLiveModelOptions[0] else . end
+    | if (($cfg.geminiLiveVoice // "") | tostring | length == 0) and (($d.geminiLiveVoiceOptions // []) | length > 0)
+        then .geminiLiveVoice = $d.geminiLiveVoiceOptions[0] else . end
+    | if (($cfg.openaiModelId // "") | tostring | length == 0) and (($d.openaiEvalModelOptions // []) | length > 0)
+        then .openaiModelId = $d.openaiEvalModelOptions[0] else . end
+    | if (($cfg.anthropicModelId // "") | tostring | length == 0) and (($d.anthropicEvalModelOptions // []) | length > 0)
+        then .anthropicModelId = $d.anthropicEvalModelOptions[0] else . end
+    | if (($cfg.geminiModelId // "") | tostring | length == 0) and (($d.geminiEvalModelOptions // []) | length > 0)
+        then .geminiModelId = $d.geminiEvalModelOptions[0] else . end
+  ' "$cfg" "$def" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+}
+
+# Merge non-empty fields into .app-runtime-config.json (camelCase keys). Uses jq (required by this installer).
+# Args: install_root openai anthropic gemini gemini_live_model llm local_whisper_exe set_eval_default(0|1) live_realtime_provider
+merge_app_runtime_config_snippet() {
+  local root="$1"
+  local cfg="${root}/.app-runtime-config.json"
+  local openai_key anthropic_key gemini_key gemini_model llm_choice whisper_sh live_rt
+  openai_key="$(trim_crlf "${2:-}")"
+  anthropic_key="$(trim_crlf "${3:-}")"
+  gemini_key="$(trim_crlf "${4:-}")"
+  gemini_model="$(trim_crlf "${5:-}")"
+  llm_choice="$(trim_crlf "${6:-}")"
+  whisper_sh="$(trim_crlf "${7:-}")"
+  local setdef_json="false"
+  [[ "${8:-0}" == "1" ]] && setdef_json="true"
+  live_rt="$(trim_crlf "${9:-}" | tr '[:upper:]' '[:lower:]')"
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aic-rt-merge.XXXXXX")"
+  if ! { [[ -f "$cfg" ]] && [[ -s "$cfg" ]] && cat "$cfg" || printf '%s\n' '{"version":1}'; } | jq -s \
+    --arg o "$openai_key" \
+    --arg a "$anthropic_key" \
+    --arg g "$gemini_key" \
+    --arg gl "$gemini_model" \
+    --arg l "$llm_choice" \
+    --arg w "$whisper_sh" \
+    --arg lr "$live_rt" \
+    --argjson setdef "${setdef_json}" \
+    '
+    .[0] as $raw
+    | ($raw | if type == "object" and .version == 1 then . else {"version":1} end) as $base
+    | $base
+    | (if ($o | length) > 0 then .openaiApiKey = $o else . end)
+    | (if ($a | length) > 0 then .anthropicApiKey = $a else . end)
+    | (if ($g | length) > 0 then .geminiApiKey = $g else . end)
+    | (if ($gl | length) > 0 then .geminiLiveModel = $gl else . end)
+    | (if ($l | length) > 0 then .llmProvider = $l else . end)
+    | (if ($w | length) > 0 then .localWhisperExecutable = $w else . end)
+    | (if ($lr == "openai" or $lr == "gemini") then .liveRealtimeProvider = $lr else . end)
+    | .version = 1
+    | if $setdef and ((.evaluationProvider // "") | length == 0) then .evaluationProvider = "single-agent" else . end
+    ' >"$tmp"; then
+    rm -f "$tmp"
+    printf '%s\n' "merge_app_runtime_config_snippet: jq failed while updating ${cfg} (invalid JSON or jq not installed)." >&2
+    exit 1
+  fi
+  mv "$tmp" "$cfg"
 }
 
 fetch_release_json() {
@@ -634,17 +844,17 @@ main() {
   local need_install=false
   if ! node_is_ok; then
     need_install=true
-    say_warn "Node.js 20+ not found or too old."
+    say_warn "Node.js ${NODE_MIN_MAJOR}+ required; current: $(node_version_line) ($(command -v node 2>/dev/null || echo no node on PATH))."
   fi
-  for c in ffmpeg ffprobe python3 unzip curl tar; do
+  for c in ffmpeg ffprobe python3 jq unzip curl tar; do
     command -v "$c" >/dev/null 2>&1 || need_install=true
   done
   if [[ "$need_install" == true ]]; then
     say_warn "Missing or not usable on PATH (the server needs these for recording merge, audio, and local tools):"
     if ! node_is_ok; then
-      say "  - Node.js 20+ (run: node --version)"
+      say "  - Node.js ${NODE_MIN_MAJOR}+ (run: node --version)"
     fi
-    for c in ffmpeg ffprobe python3 unzip curl tar; do
+    for c in ffmpeg ffprobe python3 jq unzip curl tar; do
       if ! command -v "$c" >/dev/null 2>&1; then
         say "  - ${c}"
       fi
@@ -654,11 +864,31 @@ main() {
         echo "Automatic dependency install failed. Fix errors above, install prerequisites manually, then re-run." >&2
         exit 1
       }
+      hash -r 2>/dev/null || true
+      maybe_nvm
+      if ! node_is_ok; then
+        say_warn "Node.js is still below ${NODE_MIN_MAJOR} after package install; running a dedicated Node upgrade step…"
+        upgrade_node_on_host || say_warn "Dedicated Node upgrade step did not complete; check errors above."
+        hash -r 2>/dev/null || true
+        maybe_nvm
+      fi
+      if ! command -v python3 >/dev/null 2>&1; then
+        say_warn "python3 is still missing after package install; running a dedicated Python install step…"
+        upgrade_python_on_host || say_warn "Dedicated Python install step did not complete; check errors above."
+        hash -r 2>/dev/null || true
+      fi
+    else
+      if ! node_is_ok; then
+        say_warn "Node.js ${NODE_MIN_MAJOR}+ is required. Install Node (e.g. https://nodejs.org/, nvm, or Homebrew) and re-run, or accept automatic dependency install when prompted."
+      fi
+      if ! command -v python3 >/dev/null 2>&1; then
+        say_warn "python3 is required for openai-whisper (venv + pip). Install Python 3 (e.g. brew install python3; Debian/Ubuntu: sudo apt install python3 python3-venv python3-pip; Fedora: sudo dnf install python3 python3-pip) and re-run, or accept automatic dependency install when prompted."
+      fi
     fi
   else
     say_ok "Host dependency check passed — required tools are on PATH:"
     say_dim "  Video/audio: ffmpeg ($(command -v ffmpeg)), ffprobe ($(command -v ffprobe))"
-    say_dim "  Node $(node --version 2>/dev/null)  ·  python3 ($(command -v python3))"
+    say_dim "  Node $(node --version 2>/dev/null)  ·  python3 ($(command -v python3))  ·  jq ($(command -v jq))"
     say_dim "  Utilities: unzip, curl, tar"
   fi
 
@@ -705,91 +935,95 @@ main() {
   if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
     upsert_env_line "DATABASE_URL" "DATABASE_URL=\"file:${db_file}\""
   fi
-  tick_done "Data directory and DATABASE_URL ready"
+  ensure_app_runtime_config_file
+  if ! apply_shipped_runtime_model_defaults "${INSTALL_PREFIX}"; then
+    say_warn "Could not merge default model ids from .app-runtime-config.defaults.json (jq or file issue). You can set models in Server config later."
+  fi
+  tick_done "Data directory, DATABASE_URL, and .app-runtime-config.json ready"
   bump_install_progress "Data / .env base"
 
-  banner "API keys (LLM, Gemini Live)"
-  local openai_key anthropic_key llm_choice gemini_key gemini_model
-  local gemini_model_default="gemini-2.5-flash-native-audio-preview-12-2025"
+  banner "API keys (optional)"
+  local openai_key="" anthropic_key="" gemini_key="" gemini_model=""
+  local live_rt="openai" llm_choice="openai"
+
   if [[ "${AUTO_YES}" == "1" ]]; then
-    say_dim "INSTALL_CONSUMER_YES=1: not prompting for secrets — using OPENAI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER,"
-    say_dim "GEMINI_API_KEY, GEMINI_LIVE_MODEL from the environment if set."
+    say_dim "INSTALL_CONSUMER_YES=1: optional keys from env → .app-runtime-config.json; models use shipped defaults."
+    say_dim "Env: LIVE_REALTIME_PROVIDER (openai|gemini), OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER (openai|gemini|anthropic)."
+    live_rt="$(trim_crlf "${LIVE_REALTIME_PROVIDER:-openai}")"
+    live_rt="$(printf '%s' "$live_rt" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    [[ "$live_rt" == "openai" || "$live_rt" == "gemini" ]] || live_rt="openai"
     openai_key="$(trim_crlf "${OPENAI_API_KEY:-}")"
-    anthropic_key="$(trim_crlf "${ANTHROPIC_API_KEY:-}")"
-    llm_choice="$(trim_crlf "${LLM_PROVIDER:-}")"
     gemini_key="$(trim_crlf "${GEMINI_API_KEY:-}")"
-    gemini_model="$(trim_crlf "${GEMINI_LIVE_MODEL:-}")"
+    anthropic_key="$(trim_crlf "${ANTHROPIC_API_KEY:-}")"
+    llm_choice="$(trim_crlf "${LLM_PROVIDER:-openai}")"
   else
-    choose_llm_index=0
     if [[ -r /dev/tty && -w /dev/tty ]]; then
-      say "${C_ACCENT}Choose LLM vendor:${C_RST} arrow keys or ${C_BOLD}1${C_RST} / ${C_BOLD}2${C_RST}, then Enter."
-      choose_llm_provider_menu || true
+      say "${C_ACCENT}Realtime / Live bridge provider:${C_RST} ${C_DIM}↑/↓ or ${C_BOLD}1${C_RST}/${C_BOLD}2${C_RST}, Enter.${C_RST}"
+      choose_rt_index=0
+      choose_realtime_provider_menu || true
     else
-      say_warn "No TTY for menu; defaulting to OpenAI. Set LLM_PROVIDER=anthropic before running to force Anthropic."
-      choose_llm_index=0
+      say_warn "No TTY for menu; defaulting realtime provider to OpenAI (set LIVE_REALTIME_PROVIDER=gemini to force Gemini)."
+      choose_rt_index=0
     fi
-    if [[ "${choose_llm_index}" -eq 1 ]]; then
+    if [[ "${choose_rt_index}" -eq 1 ]]; then
+      live_rt="gemini"
+      gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
+    else
+      live_rt="openai"
+      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime / voice bridge (optional — Enter to skip)")")"
+    fi
+
+    if [[ -r /dev/tty && -w /dev/tty ]]; then
+      say ""
+      say "${C_ACCENT}Evaluation / rubric LLM:${C_RST} ${C_DIM}↑/↓ or ${C_BOLD}1${C_RST}/${C_BOLD}2${C_RST}/${C_BOLD}3${C_RST}, Enter.${C_RST}"
+      choose_eval_index=0
+      choose_eval_llm_menu || true
+    else
+      say_warn "No TTY for menu; defaulting evaluation LLM to OpenAI (set LLM_PROVIDER=gemini|anthropic)."
+      choose_eval_index=0
+    fi
+    if [[ "${choose_eval_index}" -eq 1 ]]; then
+      llm_choice="gemini"
+      if [[ -z "$gemini_key" ]]; then
+        gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for evaluation (optional — Enter to skip)")")"
+      fi
+    elif [[ "${choose_eval_index}" -eq 2 ]]; then
       llm_choice="anthropic"
-      say "Anthropic will run rubric evaluation (and related LLM calls). Speech-to-text uses local Whisper; set WHISPER_MODEL (or LOCAL_WHISPER_MODEL) in .env if you use the whisper venv."
-      anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key (Enter to skip)")")"
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key — optional for OpenAI LLM / features (Enter to skip)")")"
-      if [[ -z "$openai_key" ]]; then
-        say "No OpenAI key — add OPENAI_API_KEY in .env before using OpenAI-backed features."
+      anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key for evaluation (optional — Enter to skip)")")"
+      if [[ "$live_rt" == "openai" && -z "$openai_key" ]]; then
+        openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime voice (optional — Enter to skip)")")"
+      elif [[ "$live_rt" == "gemini" && -z "$gemini_key" ]]; then
+        gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
       fi
     else
       llm_choice="openai"
-      say "OpenAI will power LLM evaluation and (with the optional openai-whisper venv) offline speech-to-text."
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key (Enter to skip)")")"
-      anthropic_key=""
-    fi
-    say_dim "Google Gemini (optional) — Live WebSocket needs GEMINI_API_KEY and GEMINI_LIVE_MODEL."
-    gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key (Enter to skip)")")"
-    gemini_model=""
-    if [[ -n "$gemini_key" ]]; then
-      gemini_model="$(trim_crlf "$(prompt "Gemini Live model id" "${gemini_model_default}")")"
+      if [[ -z "$openai_key" ]]; then
+        openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for evaluation (optional — Enter to skip)")")"
+      fi
     fi
   fi
 
   llm_choice="$(printf '%s' "$llm_choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-  if [[ -n "$llm_choice" && "$llm_choice" != "openai" && "$llm_choice" != "anthropic" ]]; then
-    say_warn "Unrecognized LLM_PROVIDER='${llm_choice}' — using inferred default."
-    llm_choice=""
+  if [[ "$llm_choice" != "openai" && "$llm_choice" != "anthropic" && "$llm_choice" != "gemini" ]]; then
+    say_warn "Unrecognized LLM_PROVIDER='${llm_choice}' — using openai."
+    llm_choice="openai"
   fi
+  live_rt="$(printf '%s' "$live_rt" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  [[ "$live_rt" == "openai" || "$live_rt" == "gemini" ]] || live_rt="openai"
 
-  if [[ -z "$llm_choice" ]]; then
-    if [[ -n "$anthropic_key" && -z "$openai_key" ]]; then
-      llm_choice="anthropic"
-    else
-      llm_choice="openai"
-    fi
-  fi
-  upsert_env_line "LLM_PROVIDER" "LLM_PROVIDER=${llm_choice}"
+  gemini_model=""
+  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" \
+    "${openai_key}" \
+    "${anthropic_key}" \
+    "${gemini_key}" \
+    "${gemini_model}" \
+    "${llm_choice}" \
+    "" \
+    "1" \
+    "${live_rt}"
 
-  if [[ -n "$openai_key" ]]; then
-    upsert_env_line "OPENAI_API_KEY" "OPENAI_API_KEY=${openai_key}"
-  fi
-  if [[ -n "$anthropic_key" ]]; then
-    upsert_env_line "ANTHROPIC_API_KEY" "ANTHROPIC_API_KEY=${anthropic_key}"
-  fi
-
-  if [[ -n "$gemini_key" ]]; then
-    upsert_env_line "GEMINI_API_KEY" "GEMINI_API_KEY=${gemini_key}"
-    if [[ -z "$gemini_model" ]]; then
-      gemini_model="${gemini_model_default}"
-    fi
-    upsert_env_line "GEMINI_LIVE_MODEL" "GEMINI_LIVE_MODEL=${gemini_model}"
-  fi
-
-  if [[ "$llm_choice" == "anthropic" && -z "$anthropic_key" ]]; then
-    say_note "LLM_PROVIDER=anthropic but no Anthropic key — add ANTHROPIC_API_KEY in .env before using the LLM."
-  fi
-  if [[ "$llm_choice" == "openai" && -z "$openai_key" ]]; then
-    say_note "LLM_PROVIDER=openai but no OpenAI key — add OPENAI_API_KEY in .env for LLM and related OpenAI features."
-  fi
-  if [[ -z "$gemini_key" ]]; then
-    say_note "Gemini Live is off until GEMINI_API_KEY and GEMINI_LIVE_MODEL are set in .env."
-  fi
-  tick_done "API keys and provider env written (as entered)"
+  say_dim "Default models come from .app-runtime-config.defaults.json; change keys and models anytime in Chrome → Server config."
+  tick_done "Runtime config saved (keys optional, default models)"
   bump_install_progress "Secrets / LLM"
 
   printf '%b%s%b\n' "${C_ACCENT}" "Prisma db push…" "${C_RST}"
@@ -799,28 +1033,25 @@ main() {
   tick_done "Database schema applied (Prisma)"
   bump_install_progress "Prisma"
 
-  banner "Python: openai-whisper CLI (local STT, no WhisperX)"
+  banner "openai-whisper CLI (local STT, required)"
   local venv_whisper="${INSTALL_PREFIX}/venv-whisper"
-  if [[ "${INSTALL_SKIP_PYTHON_VENVS:-}" == "1" ]]; then
-    say_dim "INSTALL_SKIP_PYTHON_VENVS=1: skipping openai-whisper venv."
-    tick_done "openai-whisper venv skipped"
-  elif prompt_yn "Create venv and pip install openai-whisper (set WHISPER_MODEL in .env if needed; plain CLI, not WhisperX)?" "y"; then
-    python3 -m venv "${venv_whisper}"
-    "${venv_whisper}/bin/pip" install -U pip setuptools wheel
-    say_dim "Installing openai-whisper (CLI only; no pyannote / WhisperX)…"
-    "${venv_whisper}/bin/pip" install "openai-whisper"
-    local whisper_sh="${INSTALL_PREFIX}/bin/whisper"
-    mkdir -p "${INSTALL_PREFIX}/bin"
-    cat >"${whisper_sh}" <<EOF
+  if ! command -v python3 >/dev/null 2>&1; then
+    printf '%b%s%b\n' "${C_ERR}" "python3 is required on PATH for openai-whisper (local speech-to-text). Install Python 3, re-run host dependency install, or re-run this script." "${C_RST}" >&2
+    exit 1
+  fi
+  python3 -m venv "${venv_whisper}"
+  "${venv_whisper}/bin/pip" install -U pip setuptools wheel
+  say_dim "Installing openai-whisper (plain CLI; not WhisperX)…"
+  "${venv_whisper}/bin/pip" install "openai-whisper"
+  local whisper_sh="${INSTALL_PREFIX}/bin/whisper"
+  mkdir -p "${INSTALL_PREFIX}/bin"
+  cat >"${whisper_sh}" <<EOF
 #!/usr/bin/env bash
 exec "${venv_whisper}/bin/whisper" "\$@"
 EOF
-    chmod +x "${whisper_sh}"
-    upsert_env_line "LOCAL_WHISPER_EXECUTABLE" "LOCAL_WHISPER_EXECUTABLE=${whisper_sh}"
-    tick_done "openai-whisper CLI ready (${whisper_sh})"
-  else
-    tick_done "openai-whisper venv declined"
-  fi
+  chmod +x "${whisper_sh}"
+  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" "" "" "" "" "" "${whisper_sh}" "0" ""
+  tick_done "openai-whisper CLI ready (${whisper_sh})"
   bump_install_progress "openai-whisper"
 
   banner "Chrome extension"
@@ -1007,7 +1238,7 @@ EOS
   fi
   say_dim "Optional PATH: export PATH=\"${INSTALL_PREFIX}/bin:\${PATH}\""
   say ""
-  say_dim "Tweak ${INSTALL_PREFIX}/.env — EVALUATION_PROVIDER, GEMINI_*, LOCAL_WHISPER_*, WHISPER_MODEL, … and Server config for API keys / models (speech-to-text is always local Whisper)."
+  say_dim "Tweak ${INSTALL_PREFIX}/.app-runtime-config.json in Chrome Server config for keys, liveRealtimeProvider, models, whisperModel, … (HOST/PORT/DATABASE_URL stay in .env). localWhisperExecutable is set to bin/whisper from this install."
   if [[ "${EXT_INSTALLED}" == true ]] && [[ -f "${EXT_DIR}/manifest.json" ]]; then
     say ""
     say "${C_ACCENT}Chrome:${C_RST} Extensions → Developer mode → Load unpacked → ${C_BOLD}${EXT_DIR}${C_RST}"

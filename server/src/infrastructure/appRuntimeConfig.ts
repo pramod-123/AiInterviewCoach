@@ -45,6 +45,10 @@ export type AppRuntimeConfigV1 = {
   whisperModelOptions?: string[];
   /** Local Whisper CLI checkpoint id; merged as `WHISPER_MODEL` when set. */
   whisperModel?: string;
+  /** Evaluator mode; merged as `EVALUATION_PROVIDER` when set (`llm` | `single-agent`). */
+  evaluationProvider?: string;
+  /** Path to local Whisper CLI; merged as `LOCAL_WHISPER_EXECUTABLE` when set. */
+  localWhisperExecutable?: string;
 };
 
 /** GET `/api/app-config` — no raw secrets. */
@@ -71,6 +75,8 @@ export type AppRuntimeConfigPublicV1 = {
   geminiApiKeyConfigured: boolean;
   anthropicApiKeyConfigured: boolean;
   whisperModel: string;
+  evaluationProvider: string;
+  localWhisperExecutable: string;
 };
 
 const STRING_PATCH_KEYS = new Set([
@@ -87,6 +93,8 @@ const STRING_PATCH_KEYS = new Set([
   "anthropicModelId",
   "geminiModelId",
   "whisperModel",
+  "evaluationProvider",
+  "localWhisperExecutable",
 ]);
 
 const ARRAY_PATCH_KEYS = new Set([
@@ -218,6 +226,8 @@ export function toPublicRuntimeConfig(
     geminiApiKeyConfigured: Boolean(c.geminiApiKey?.trim()),
     anthropicApiKeyConfigured: Boolean(c.anthropicApiKey?.trim()),
     whisperModel: (c.whisperModel ?? "").trim(),
+    evaluationProvider: (c.evaluationProvider ?? "").trim(),
+    localWhisperExecutable: (c.localWhisperExecutable ?? "").trim(),
   };
 }
 
@@ -331,6 +341,8 @@ export function getMergedAppEnv(paths: AppPaths): NodeJS.ProcessEnv {
       set("ANTHROPIC_MODEL_ID", file.anthropicModelId);
       set("GEMINI_MODEL_ID", file.geminiModelId);
       set("WHISPER_MODEL", file.whisperModel);
+      set("EVALUATION_PROVIDER", file.evaluationProvider);
+      set("LOCAL_WHISPER_EXECUTABLE", file.localWhisperExecutable);
     }
     const env = base as NodeJS.ProcessEnv;
     mergedEnvCache = { mtimeMs: st.mtimeMs, env };
@@ -397,6 +409,9 @@ export async function patchRuntimeAppConfig(
   }
   if (next.llmProvider) {
     next.llmProvider = next.llmProvider.trim().toLowerCase();
+  }
+  if (next.evaluationProvider) {
+    next.evaluationProvider = next.evaluationProvider.trim().toLowerCase();
   }
   if (next.whisperModel) {
     next.whisperModel = next.whisperModel.trim().toLowerCase();

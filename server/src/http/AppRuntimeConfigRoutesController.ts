@@ -25,6 +25,8 @@ const EVAL_MODEL_OPTION_ITEM_MAX_LEN = 128;
 
 const LIVE_PROVIDERS = new Set(["gemini", "openai"]);
 const LLM_PROVIDERS = new Set(["openai", "anthropic", "gemini"]);
+const EVAL_PROVIDERS = new Set(["llm", "single-agent"]);
+const LOCAL_WHISPER_EXE_MAX_LEN = 4096;
 
 export class AppRuntimeConfigRoutesController {
   constructor(private readonly paths: AppPaths) {}
@@ -98,6 +100,29 @@ function validateAppConfigPatch(paths: AppPaths, raw: Record<string, unknown>): 
     const t = lp.trim().toLowerCase();
     if (t && !LLM_PROVIDERS.has(t)) {
       return `llmProvider must be openai, anthropic, or gemini (got "${lp}").`;
+    }
+  }
+  const ep = raw.evaluationProvider;
+  if (ep !== undefined && ep !== null) {
+    if (typeof ep !== "string") {
+      return "evaluationProvider must be a string.";
+    }
+    const t = ep.trim().toLowerCase();
+    if (t && !EVAL_PROVIDERS.has(t)) {
+      return `evaluationProvider must be "llm" or "single-agent" (got "${ep}").`;
+    }
+  }
+  const lwx = raw.localWhisperExecutable;
+  if (lwx !== undefined && lwx !== null) {
+    if (typeof lwx !== "string") {
+      return "localWhisperExecutable must be a string.";
+    }
+    const t = lwx.trim();
+    if (t.length > LOCAL_WHISPER_EXE_MAX_LEN) {
+      return "localWhisperExecutable is too long.";
+    }
+    if (t.includes("\n") || t.includes("\r")) {
+      return "localWhisperExecutable must not contain line breaks.";
     }
   }
   for (const [k, v] of Object.entries(raw)) {
