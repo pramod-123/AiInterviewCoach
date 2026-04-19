@@ -100,7 +100,7 @@
 
             <div id="sideHelpPanel" class="sp-panel-toggle hidden" role="region" aria-label="Help">
               <p>
-                Open the toolbar popup → <strong>Start interview</strong> on a LeetCode problem tab. Uncheck
+                Open the toolbar popup → <strong>Start interview</strong> on a supported practice-site tab. Uncheck
                 <strong>Live voice interviewer</strong> there to record without Gemini Live; the transcript is built
                 offline when you end the session.
               </p>
@@ -174,7 +174,7 @@
         </div>
 
         <footer class="sp-actions">
-          <button type="button" id="btnStart">Start recording LeetCode tab</button>
+          <button type="button" id="btnStart">Start recording practice tab</button>
           <button type="button" id="btnStop" disabled>Stop capture</button>
           <button type="button" id="btnEnd" disabled>End session on server</button>
         </footer>
@@ -219,6 +219,7 @@
       </div>
     </div>
 
+    <script src="platformUrls.js"></script>
     <script src="icAppConfigFlags.js"></script>
     <script src="vendor/prism/prism-bundle.min.js" data-manual></script>
     <script src="markdownRender.js"></script>

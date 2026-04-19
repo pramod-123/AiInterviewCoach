@@ -16,7 +16,7 @@ npx prisma db push
 
 ### Browser extension
 
-There is no npm build for **`browser-extension/chrome/`** (plain HTML/CSS/JS). Load it in Chrome: **Extensions** → **Developer mode** → **Load unpacked** → choose **`browser-extension/chrome`**. Point the popup’s **API base URL** at your running server (default `http://127.0.0.1:3001`). Use a **`https://leetcode.com/problems/...`** tab when exercising capture.
+There is no npm build for **`browser-extension/chrome/`** (plain HTML/CSS/JS). Load it in Chrome: **Extensions** → **Developer mode** → **Load unpacked** → choose **`browser-extension/chrome`**. Point the popup’s **API base URL** at your running server (default `http://127.0.0.1:3001`). Use a supported practice tab (e.g. **LeetCode**, **Codeforces**, **HackerRank**) when exercising capture.
 
 ## Before opening a PR
 

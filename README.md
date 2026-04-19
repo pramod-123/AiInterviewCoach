@@ -1,8 +1,8 @@
 # Ai Interview Copilot
 
-Backend service for **live LeetCode sessions**: the extension captures **tab video + mic + periodic editor code snapshots**; after **`/end`**, the server merges WebM with **ffmpeg**, runs **speech-to-text** (Whisper) and a structured **rubric evaluation** (LLM) on the same timeline. **Tesseract is not used.** Poll **`GET /api/interviews/:id`** for results. Classic **`POST /api/interviews`** file upload has been removed.
+Backend service for **live practice sessions** (LeetCode, HackerRank, Codeforces, AtCoder, CodeChef, TopCoder, and similar): the extension captures **tab video + mic + periodic editor code snapshots**; after **`/end`**, the server merges WebM with **ffmpeg**, runs **speech-to-text** (Whisper) and a structured **rubric evaluation** (LLM) on the same timeline. **Tesseract is not used.** Poll **`GET /api/interviews/:id`** for results. Classic **`POST /api/interviews`** file upload has been removed.
 
-The **Chrome** extension under **`browser-extension/chrome/`** starts sessions from **leetcode.com** problems, records via the **side panel** (mic + tab), uploads chunks to the server, and opens a **sessions** report page (video, transcript, dimensions, moment-by-moment feedback).
+The **Chrome** extension under **`browser-extension/chrome/`** starts sessions from supported problem pages, records via the **side panel** (mic + tab), uploads chunks to the server, and opens a **sessions** report page (video, transcript, dimensions, moment-by-moment feedback).
 
 ## Repository layout
 
@@ -10,7 +10,7 @@ The **Chrome** extension under **`browser-extension/chrome/`** starts sessions f
 |------|---------|
 | `server/` | Node.js + Fastify app, Prisma (SQLite), live-session merge/remux, STT/eval, prompts |
 | `server/tst/` | Vitest unit tests |
-| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, LeetCode content script, **Sessions** UI + **Server config** (writes `server/.app-runtime-config.json` overrides) |
+| `browser-extension/chrome/` | Chromium MV3 build: popup, side panel recorder, practice-site content script, **Sessions** UI + **Server config** (writes `server/.app-runtime-config.json` overrides) |
 | `browser-extension/firefox/` | Reserved for a future Firefox build |
 | `demo/` | README screenshots, animated GIF preview, and muted MP4 walkthrough; not used by the server |
 | `server/media/` | Optional local files for pipeline/API tests (ignored by git except `.gitkeep`) |
@@ -86,14 +86,14 @@ Notes:
 - Speech-to-text always uses the **local Whisper CLI**; set `LOCAL_WHISPER_EXECUTABLE`, `WHISPER_MODEL` (e.g. `base`, `small`, `medium`), and related vars in `.env`.
 - Keep `.env` private and never commit real keys.
 
-## Browser extension (LeetCode live capture)
+## Browser extension (practice-site live capture)
 
 1. Start the server (`npm run dev` in `server/`).
 2. Chrome → **Extensions** → **Developer mode** → **Load unpacked** → select the repo’s **`browser-extension/chrome/`** folder.
-3. Open a **`https://leetcode.com/problems/...`** tab, click the extension icon, set **API base URL** if needed (default `http://127.0.0.1:3001`), then **Start interview** (opens the **side panel** for tab capture + microphone).
+3. Open a supported problem tab (e.g. **leetcode.com**, **hackerrank.com**, **codeforces.com**, **atcoder.jp**, **codechef.com**, **topcoder.com**), click the extension icon, set **API base URL** if needed (default `http://127.0.0.1:3001`), then **Start interview** (opens the **side panel** for tab capture + microphone).
 4. After you **End session on server**, open **Sessions** from the popup to review the merged **WebM**, **transcript**, **dimensions** analysis, and **moment-by-moment** feedback (timestamps seek the video and highlight transcript lines).
 
-Problem text is scraped from the LeetCode page (DOM + `__NEXT_DATA__`); editor code prefers **Monaco** in the page (full buffer) with DOM fallback.
+Problem text and editor code are scraped per site (LeetCode also uses `__NEXT_DATA__`); the side panel prefers **Monaco** models in the page when present, then **CodeMirror**, **Ace**, and DOM/textarea fallbacks.
 
 ## Demo
 
@@ -181,7 +181,7 @@ flowchart LR
   lsp --> artifacts["Artifacts under data/live-sessions per session / post-process/"]
 ```
 
-1. **Live LeetCode session** — extension → **`POST /api/live-sessions`** + chunk/snapshot routes → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** (`liveSessionId`), extracts **WAV**, runs **Whisper + rubric** with **extension `LiveCodeSnapshot`** rows as the code timeline → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`); artifacts under **`data/live-sessions/<sessionId>/post-process/`**.
+1. **Live practice session** — extension → **`POST /api/live-sessions`** + chunk/snapshot routes → **`POST …/end`** merges/remuxes to **`recording.webm`** → **`LiveSessionPostProcessor`** creates a **`Job`** (`liveSessionId`), extracts **WAV**, runs **Whisper + rubric** with **extension `LiveCodeSnapshot`** rows as the code timeline → persists **`SpeechUtterance`** + **`CodeSnapshot`** (`EDITOR_SNAPSHOT`); artifacts under **`data/live-sessions/<sessionId>/post-process/`**.
 
 **Low-level design** (goals, diagrams, Prisma field notes, env tables) lives in **[`server/DESIGN.md`](./server/DESIGN.md)**. That document may still mention removed classic video/OCR paths until it is fully revised.
 

@@ -1,12 +1,11 @@
 /**
- * Toolbar action is only enabled on LeetCode tabs so the extension is "active" there only.
+ * Toolbar action is enabled on supported practice / contest sites only.
  * Tab capture + MediaRecorder run entirely in the side panel (same renderer as getMediaStreamId).
  */
-
-const LEETCODE_URL_RE = /^https:\/\/([a-z0-9-]+\.)*leetcode\.com\//i;
+importScripts("platformUrls.js");
 
 function syncActionForTab(tabId, url) {
-  if (typeof url !== "string" || !LEETCODE_URL_RE.test(url)) {
+  if (typeof url !== "string" || !ICIsPracticeSiteUrl(url)) {
     void chrome.action.disable(tabId);
   } else {
     void chrome.action.enable(tabId);

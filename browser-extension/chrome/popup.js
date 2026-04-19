@@ -1,7 +1,5 @@
 const DEFAULT_API = "http://127.0.0.1:3001";
 
-const LEETCODE_URL_RE = /^https:\/\/([a-z0-9-]+\.)*leetcode\.com\//i;
-
 const MIC_HINT =
   "Chrome: Settings → Privacy → Site settings → Microphone → allow this extension. Or click the extension icon → Site settings.";
 
@@ -118,7 +116,7 @@ function setStatus(text, isError) {
       ? "See details below"
       : working
         ? "Processing…"
-        : "LeetCode capture • Standby";
+        : "Practice site capture • Standby";
   }
 }
 
@@ -171,8 +169,11 @@ document.getElementById("start").addEventListener("click", async () => {
     const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const tabId = active?.id;
     const url = active?.url || "";
-    if (tabId == null || !LEETCODE_URL_RE.test(url)) {
-      setStatus("Open this popup from a leetcode.com problem tab (icon is enabled only there).", true);
+    if (tabId == null || typeof ICIsPracticeSiteUrl !== "function" || !ICIsPracticeSiteUrl(url)) {
+      setStatus(
+        "Open this popup from a supported practice tab (LeetCode, HackerRank, Codeforces, AtCoder, CodeChef, TopCoder).",
+        true,
+      );
       return;
     }
 

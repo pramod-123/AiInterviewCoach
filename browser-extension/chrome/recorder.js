@@ -43,7 +43,7 @@ let sessionAllowsLiveInterviewer = true;
 /** @type {number | null} */
 let codeIntervalId = null;
 
-/** Polls LeetCode editor and pushes updates over the realtime voice bridge (`editorCode`) while it is up. */
+/** Polls the practice-site editor and pushes updates over the realtime voice bridge (`editorCode`) while it is up. */
 /** @type {number | null} */
 let voiceInterviewerEditorPollId = null;
 
@@ -420,7 +420,7 @@ async function wireTabAudioPassthrough(stream) {
   const audioTracks = stream.getAudioTracks();
   if (audioTracks.length === 0) {
     log(
-      "warning: 0 audio tracks — video-only (tab audio needs the LeetCode tab focused + sound playing in that tab)",
+      "warning: 0 audio tracks — video-only (tab audio needs the practice tab focused + sound playing in that tab)",
     );
     return;
   }
@@ -432,7 +432,7 @@ async function wireTabAudioPassthrough(stream) {
     await tabAudioPassthroughCtx.resume();
     const src = tabAudioPassthroughCtx.createMediaStreamSource(stream);
     src.connect(tabAudioPassthroughCtx.destination);
-    log("tab audio passthrough on (you should hear the LeetCode tab)");
+    log("tab audio passthrough on (you should hear the practice tab)");
   } catch (e) {
     log(
       `tab audio passthrough failed: ${e instanceof Error ? e.message : String(e)} (file may still have audio)`,
@@ -597,7 +597,7 @@ async function getStreamFromCaptureId(streamId) {
 }
 
 /**
- * Captures the **currently selected tab** in this window (must be the LeetCode tab). No stream id.
+ * Captures the **currently selected tab** in this window (must be the practice problem tab). No stream id.
  * @returns {Promise<MediaStream>}
  */
 function captureActiveTabViaChromeApi() {
@@ -807,12 +807,55 @@ async function pushQuestionToServer(question) {
 }
 
 /**
- * Runs in the LeetCode tab MAIN world (serialized by `executeScript` — self-contained, no closures).
- * Prefers dehydrated GraphQL (`__NEXT_DATA__`) when the visible DOM is in a shadow tree or virtualized.
+ * Runs in the practice-site tab MAIN world (serialized by `executeScript` — self-contained, no closures).
+ * LeetCode: prefers `__NEXT_DATA__` / DOM. Other hosts: large statement regions (Codeforces, AtCoder, …).
  * @returns {string}
  */
-function extractLeetCodeQuestionMainWorld() {
+function extractPracticeQuestionMainWorld() {
   const MAX = 100000;
+  const host = (location.hostname || "").toLowerCase();
+  if (!host.endsWith("leetcode.com")) {
+    const bodySelectors = [
+      ".problem-statement",
+      "#task-statement",
+      ".challenge-body-html",
+      "[data-e2e='challenge-description']",
+      ".problem-statement-container",
+      ".problemStatement",
+      "#problem-statement",
+      ".content--wide.problem-statement",
+      "div[data-hook='problem-description']",
+    ];
+    let best = "";
+    for (const sel of bodySelectors) {
+      try {
+        const el = document.querySelector(sel);
+        const t = (el?.innerText || "").replace(/\u00a0/g, " ").trim();
+        if (t.length > best.length && t.length < MAX) {
+          best = t;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    const h1 =
+      document.querySelector("h1")?.textContent?.replace(/\u00a0/g, " ").trim() ||
+      document.title?.split(/[-|]/)[0]?.trim() ||
+      "";
+    if (best.length > 200) {
+      return (h1 ? `${h1}\n\n${best}` : best).slice(0, MAX);
+    }
+    const wide = document.querySelector("main, article, #pageContent, #main, .body");
+    const wtxt = (wide?.innerText || "").replace(/\u00a0/g, " ").trim();
+    if (wtxt.length > best.length && wtxt.length < MAX) {
+      best = wtxt;
+    }
+    if (best.length > 80) {
+      return (h1 ? `${h1}\n\n${best}` : best).slice(0, MAX);
+    }
+    return (h1 ? `${h1}\n\n(Problem body not fully detected from this page.)` : best || "(No statement text)")
+      .slice(0, MAX);
+  }
   function stripHtml(html) {
     if (!html || typeof html !== "string") {
       return "";
@@ -998,7 +1041,7 @@ async function pullQuestionFromLeetCodeTab() {
     const results = await chrome.scripting.executeScript({
       target: { tabId: leetcodeTabId },
       world: "MAIN",
-      func: extractLeetCodeQuestionMainWorld,
+      func: extractPracticeQuestionMainWorld,
     });
     const r = results[0]?.result;
     if (typeof r === "string") {
@@ -1026,18 +1069,56 @@ async function getCodeFromLeetCodeTab() {
       world: "MAIN",
       func: () => {
         try {
-          const monaco = globalThis.monaco;
-          if (!monaco?.editor?.getModels) {
-            return { code: "" };
-          }
           let best = "";
-          for (const m of monaco.editor.getModels()) {
-            const v = m.getValue();
-            if (typeof v === "string" && v.length > best.length) {
-              best = v;
+          const monaco = globalThis.monaco;
+          if (monaco?.editor?.getModels) {
+            for (const m of monaco.editor.getModels()) {
+              const v = m.getValue();
+              if (typeof v === "string" && v.length > best.length) {
+                best = v;
+              }
             }
           }
-          return { code: best };
+          if (!best) {
+            const wraps = document.querySelectorAll(".CodeMirror");
+            for (const wrap of wraps) {
+              const cm = wrap.CodeMirror;
+              if (cm && typeof cm.getValue === "function") {
+                try {
+                  const v = cm.getValue();
+                  if (typeof v === "string" && v.length > best.length) {
+                    best = v;
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+            }
+          }
+          const ace = globalThis.ace;
+          if (!best && ace && typeof ace.edit === "function") {
+            for (const el of document.querySelectorAll(".ace_editor")) {
+              try {
+                const ed = ace.edit(el);
+                const v = ed.getValue();
+                if (typeof v === "string" && v.length > best.length) {
+                  best = v;
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          if (!best) {
+            for (const sel of ['textarea[name="source"]', "#source", "textarea.cm-textarea"]) {
+              const el = document.querySelector(sel);
+              const v = el && "value" in el ? String(el.value || "") : "";
+              if (v.length > best.length) {
+                best = v;
+              }
+            }
+          }
+          return { code: best || "" };
         } catch {
           return { code: "" };
         }
@@ -1081,7 +1162,7 @@ async function pullAndUploadCodeInitial() {
     await uploadCodeSnapshot(code, { forceOffsetSeconds: 0 });
     lastUploadedCode = code;
     if (source === "dom") {
-      log("code via DOM (visible lines only — scroll full editor into view or update LeetCode if incomplete)");
+      log("code via DOM (visible lines only — scroll full editor into view if incomplete)");
     }
   } catch (e) {
     log(`code t=0 error: ${e instanceof Error ? e.message : String(e)}`);
@@ -1109,7 +1190,7 @@ async function pullAndUploadCodeTick() {
     }
     lastUploadedCode = code;
     if (source === "dom") {
-      log("code via DOM (visible lines only — scroll full editor into view or update LeetCode if incomplete)");
+      log("code via DOM (visible lines only — scroll full editor into view if incomplete)");
     }
   } catch (e) {
     log(`code error: ${e instanceof Error ? e.message : String(e)}`);
@@ -1339,7 +1420,7 @@ async function refreshSidepanelAfterRuntimeConfigSave() {
 
   if (metaEl) {
     metaEl.textContent = serverInterviewPipelineEnabled
-      ? `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`
+      ? `Session ${sessionId} · practice tab #${leetcodeTabId} · ${apiBase}`
       : `Session ${sessionId} · Server needs configuration · ${apiBase}`;
   }
   syncCaptureUi();
@@ -1383,7 +1464,7 @@ async function init() {
   if (!sessionId || !apiBase || !tabIdValid()) {
     if (metaEl) {
       metaEl.textContent =
-        "Use the toolbar popup → Start interview on a LeetCode tab (that opens this side panel with a session).";
+        "Use the toolbar popup → Start interview on a supported practice tab (that opens this side panel with a session).";
     }
     btnStart.disabled = true;
     if (chkMic) {
@@ -1436,7 +1517,7 @@ async function init() {
 
   if (metaEl) {
     metaEl.textContent = serverInterviewPipelineEnabled
-      ? `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`
+      ? `Session ${sessionId} · practice tab #${leetcodeTabId} · ${apiBase}`
       : `Session ${sessionId} · Server needs configuration · ${apiBase}`;
   }
 
@@ -1539,7 +1620,7 @@ async function init() {
         await startTabCapturePipeline(streamId, { recordMic, micPromise });
       } catch (e1) {
         log(
-          `stream-id path failed: ${e1 instanceof Error ? e1.message : String(e1)} — trying tabCapture.capture (LeetCode tab will be focused)`,
+          `stream-id path failed: ${e1 instanceof Error ? e1.message : String(e1)} — trying tabCapture.capture (practice tab will be focused)`,
         );
         stopTabCapture();
         try {
