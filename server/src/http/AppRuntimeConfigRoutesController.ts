@@ -6,6 +6,7 @@ import {
   readRuntimeAppConfigSync,
   toPublicRuntimeConfig,
 } from "../infrastructure/appRuntimeConfig.js";
+import { getInterviewApiDisableReason, getInterviewApiEnabled } from "../interviewApiRuntimeState.js";
 
 /** Preset string arrays (eval LLM + voice bridge); same validation rules. */
 const MODEL_PRESET_ARRAY_KEYS = new Set([
@@ -27,9 +28,15 @@ const LIVE_PROVIDERS = new Set(["gemini", "openai"]);
 const LLM_PROVIDERS = new Set(["openai", "anthropic", "gemini"]);
 const EVAL_PROVIDERS = new Set(["llm", "single-agent"]);
 const LOCAL_WHISPER_EXE_MAX_LEN = 4096;
+const DATABASE_URL_MAX_LEN = 2048;
+const LISTEN_HOST_MAX_LEN = 255;
 
 export class AppRuntimeConfigRoutesController {
-  constructor(private readonly paths: AppPaths) {}
+  constructor(
+    private readonly paths: AppPaths,
+    /** Invoked before reading config so `interviewApiEnabled` matches merged env (no server restart). */
+    private readonly onBeforeAppConfigExpose?: () => void,
+  ) {}
 
   register(app: FastifyInstance): void {
     app.get("/api/app-config", (_request, reply) => this.handleGet(reply));
@@ -37,8 +44,14 @@ export class AppRuntimeConfigRoutesController {
   }
 
   private handleGet(reply: FastifyReply): void {
+    this.onBeforeAppConfigExpose?.();
     const cfg = readRuntimeAppConfigSync(this.paths);
-    void reply.send(toPublicRuntimeConfig(this.paths, cfg));
+    void reply.send(
+      toPublicRuntimeConfig(this.paths, cfg, {
+        interviewApiEnabled: getInterviewApiEnabled(),
+        interviewApiDisableReason: getInterviewApiDisableReason(),
+      }),
+    );
   }
 
   private async handlePut(request: FastifyRequest<{ Body: unknown }>, reply: FastifyReply): Promise<void> {
@@ -57,6 +70,7 @@ export class AppRuntimeConfigRoutesController {
       request.log.warn({ err: e }, "app-config: write failed");
       return void reply.code(500).send({ error: "Failed to save configuration." });
     }
+    this.onBeforeAppConfigExpose?.();
     return void reply.send({ ok: true });
   }
 }
@@ -110,6 +124,48 @@ function validateAppConfigPatch(paths: AppPaths, raw: Record<string, unknown>): 
     const t = ep.trim().toLowerCase();
     if (t && !EVAL_PROVIDERS.has(t)) {
       return `evaluationProvider must be "llm" or "single-agent" (got "${ep}").`;
+    }
+  }
+  const dbu = raw.databaseUrl;
+  if (dbu !== undefined && dbu !== null) {
+    if (typeof dbu !== "string") {
+      return "databaseUrl must be a string.";
+    }
+    const t = dbu.trim();
+    if (t.length > DATABASE_URL_MAX_LEN) {
+      return "databaseUrl is too long.";
+    }
+    if (t.includes("\n") || t.includes("\r")) {
+      return "databaseUrl must not contain line breaks.";
+    }
+  }
+  const lh = raw.listenHost;
+  if (lh !== undefined && lh !== null) {
+    if (typeof lh !== "string") {
+      return "listenHost must be a string.";
+    }
+    const t = lh.trim();
+    if (t.length > LISTEN_HOST_MAX_LEN) {
+      return "listenHost is too long.";
+    }
+    if (/[\s\u0000-\u001f]/.test(t)) {
+      return "listenHost must not contain whitespace or control characters.";
+    }
+  }
+  const lpn = raw.listenPort;
+  if (lpn !== undefined && lpn !== null) {
+    if (typeof lpn !== "string") {
+      return "listenPort must be a string.";
+    }
+    const t = lpn.trim();
+    if (t && !/^[0-9]+$/.test(t)) {
+      return `listenPort must be digits only (got "${lpn}").`;
+    }
+    if (t) {
+      const n = Number.parseInt(t, 10);
+      if (!Number.isFinite(n) || n < 1 || n > 65535) {
+        return `listenPort must be between 1 and 65535 (got "${lpn}").`;
+      }
     }
   }
   const lwx = raw.localWhisperExecutable;

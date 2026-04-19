@@ -3,13 +3,19 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { PrismaAppDao } from "./dao/PrismaAppDao.js";
 import type { IAppDao } from "./dao/IAppDao.js";
+import { getMergedAppEnv } from "./infrastructure/appRuntimeConfig.js";
+import { AppPaths } from "./infrastructure/AppPaths.js";
 
 const DEFAULT_DB_URL = `file:${path.resolve(import.meta.dirname, "../../data/app.db")}`;
+
+const pathsForDb = new AppPaths();
+const mergedForPrisma = getMergedAppEnv(pathsForDb);
+const resolvedDatabaseUrl = mergedForPrisma.DATABASE_URL?.trim() || DEFAULT_DB_URL;
 
 // Prisma 7 requires an adapter for direct database connections (LibSQL for SQLite).
 const prisma = new PrismaClient({
   adapter: new PrismaLibSql({
-    url: process.env["DATABASE_URL"] ?? DEFAULT_DB_URL,
+    url: resolvedDatabaseUrl,
   }),
 });
 

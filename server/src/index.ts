@@ -1,9 +1,12 @@
-import "dotenv/config";
 import { closeAppDatabase, openAppDatabase } from "./db.js";
 import { InterviewCopilotServer } from "./InterviewCopilotServer.js";
+import { AppPaths } from "./infrastructure/AppPaths.js";
+import { getMergedAppEnv } from "./infrastructure/appRuntimeConfig.js";
 
-const port = Number(process.env.PORT || 3001);
-const host = process.env.HOST || "127.0.0.1";
+const bootPaths = new AppPaths();
+const bootEnv = getMergedAppEnv(bootPaths);
+const port = Number(bootEnv.PORT?.trim() || "3001");
+const host = bootEnv.HOST?.trim() || "127.0.0.1";
 
 const server = new InterviewCopilotServer();
 

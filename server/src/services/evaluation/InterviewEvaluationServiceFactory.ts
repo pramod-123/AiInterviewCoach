@@ -115,7 +115,7 @@ export class InterviewEvaluationServiceFactory {
     const configured = env.EVALUATION_PROVIDER?.trim();
     if (!configured) {
       throw new Error(
-        'EVALUATION_PROVIDER is required: set evaluationProvider in server/.app-runtime-config.json or EVALUATION_PROVIDER in .env ("llm" one-shot or "single-agent" tool agent). Set LLM_PROVIDER and the matching API key.',
+        'EVALUATION_PROVIDER is required: set evaluationProvider in server/.app-runtime-config.json (or EVALUATION_PROVIDER in the process environment) to "llm" or "single-agent". Set LLM_PROVIDER and the matching API key.',
       );
     }
     const raw = configured.toLowerCase();

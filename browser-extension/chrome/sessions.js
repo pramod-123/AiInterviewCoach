@@ -68,6 +68,19 @@ window.addEventListener("storage", (e) => {
 
 syncSessionsThemeToggleUi();
 
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.icRuntimeConfigSavedAt) {
+      return;
+    }
+    void syncInterviewApiBanner();
+  });
+}
+
+document.addEventListener("ic-server-config-saved", () => {
+  void syncInterviewApiBanner();
+});
+
 /** @type {WebSocket | null} */
 let postProcessWebSocket = null;
 
@@ -132,6 +145,34 @@ async function loadSettings() {
 async function saveApiBase() {
   const b = apiBase();
   await chrome.storage.local.set({ apiBase: b });
+}
+
+const SESS_INTERVIEW_OFF_MSG =
+  "Interview post-processing is unavailable with the current server configuration (missing API keys, local Whisper, or models). Open Server settings (gear), update values, and Save — the server picks up changes without a restart.";
+
+async function syncInterviewApiBanner() {
+  const el = document.getElementById("sessInterviewBanner");
+  const text = document.getElementById("sessInterviewBannerText");
+  if (!el || typeof window.ICFetchPublicAppConfig !== "function") {
+    return;
+  }
+  const cfg = await window.ICFetchPublicAppConfig(apiBase());
+  const enabled =
+    cfg == null || typeof cfg.interviewApiEnabled !== "boolean" ? true : Boolean(cfg.interviewApiEnabled);
+  if (enabled) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.classList.remove("hidden");
+  if (text) {
+    const fromServer =
+      cfg && typeof cfg.interviewApiDisableReason === "string" && cfg.interviewApiDisableReason.trim()
+        ? cfg.interviewApiDisableReason.trim()
+        : "";
+    text.textContent = fromServer
+      ? `${fromServer} — Fix in Server settings (gear), Save, or check the server log.`
+      : SESS_INTERVIEW_OFF_MSG;
+  }
 }
 
 /**
@@ -1290,6 +1331,7 @@ function renderSessionList(sessions) {
  */
 async function reloadSessionsSidebar() {
   const sid = selectedSessionId;
+  await syncInterviewApiBanner();
   await fetchSessions();
   if (!sid || !sessionList) {
     return;
@@ -1700,6 +1742,11 @@ btnSidebarReload?.addEventListener("click", () => {
   void reloadSessionsSidebar();
 });
 
+apiBaseInput?.addEventListener("change", () => {
+  void saveApiBase();
+  void syncInterviewApiBanner();
+});
+
 btnSidebarToggle?.addEventListener("click", () => {
   if (!sessSidebar) {
     return;
@@ -1874,6 +1921,7 @@ function openSessSettingsDrawer() {
     persistApiBase: async (normalized) => {
       await chrome.storage.local.set({ apiBase: normalized });
     },
+    onAfterSuccessfulSave: () => syncInterviewApiBanner(),
   });
   void sessServerConfigCtl.reload();
 }
@@ -1913,6 +1961,7 @@ document.addEventListener("keydown", (e) => {
   closeSessSettingsDrawer();
 });
 
-void loadSettings().then(() => {
+void loadSettings().then(async () => {
+  await syncInterviewApiBanner();
   void fetchSessions();
 });

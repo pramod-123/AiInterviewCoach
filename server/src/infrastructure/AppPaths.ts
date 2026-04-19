@@ -27,8 +27,8 @@ export class AppPaths {
   }
 
   /**
-   * Hidden JSON next to `server/.env`: API keys and models (extension UI / PUT /api/app-config).
-   * Non-empty fields override `process.env` when merged.
+   * Server runtime JSON (API keys, models, optional listenHost/listenPort/databaseUrl). Extension UI and
+   * `PUT /api/app-config` write here. Non-empty fields override `process.env` when merged via {@link getMergedAppEnv}.
    */
   runtimeAppConfigPath(): string {
     return path.join(this.serverRoot, ".app-runtime-config.json");

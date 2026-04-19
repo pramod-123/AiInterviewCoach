@@ -542,3 +542,32 @@ main.popup-main {
     background: var(--surface-bright);
   }
 }
+
+.ic-interview-api-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--on-surface, #f2f1f4);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.12);
+}
+
+.ic-interview-api-banner.hidden {
+  display: none;
+}
+
+.ic-interview-api-banner-text {
+  margin: 0 0 8px;
+}
+
+.ic-interview-api-banner-btn {
+  width: 100%;
+}
+
+.btn-primary:disabled,
+.mic-bento:has(input:disabled) {
+  opacity: 0.55;
+  pointer-events: none;
+}

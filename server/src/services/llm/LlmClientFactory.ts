@@ -12,7 +12,7 @@ export class LlmClientFactory {
     const configured = env.LLM_PROVIDER?.trim();
     if (!configured) {
       throw new Error(
-        'LLM_PROVIDER is required in .env (set to "openai", "anthropic", or "gemini" with matching API key).',
+        'LLM_PROVIDER is required: set llmProvider in server/.app-runtime-config.json (or LLM_PROVIDER in the process environment) to "openai", "anthropic", or "gemini" with the matching API key.',
       );
     }
     const raw = configured.toLowerCase();

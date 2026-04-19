@@ -22,7 +22,7 @@ Options:
   -h, --help            Show this help
 
 Requires: Node.js 20+, ffmpeg, ffprobe on PATH.
-Configure API keys and models in server/.app-runtime-config.json (created from .app-runtime-config.example.json if missing); server/.env holds HOST/PORT/DATABASE_URL from .env.example.
+Configure API keys and models in server/.app-runtime-config.json (created from .app-runtime-config.example.json if missing). Optional: listenHost, listenPort, databaseUrl in that file; server/.env is not loaded by the server (optional for other tools).
 
 For end users installing from GitHub Releases (binary tarball), use ./install.sh instead.
 EOF
@@ -112,7 +112,7 @@ cd "${SERVER}"
 if [[ ! -f .env ]]; then
   if [[ -f .env.example ]]; then
     cp .env.example .env
-    echo "Created server/.env from .env.example (HOST/PORT/DATABASE_URL)."
+    echo "Created server/.env from .env.example (optional; the dev server does not load .env)."
   else
     echo "No server/.env.example found; create server/.env manually." >&2
   fi
@@ -121,10 +121,10 @@ fi
 if [[ ! -f .app-runtime-config.json ]]; then
   if [[ -f .app-runtime-config.example.json ]]; then
     cp .app-runtime-config.example.json .app-runtime-config.json
-    echo "Created server/.app-runtime-config.json from .app-runtime-config.example.json — set API keys, evaluationProvider, and models before using the API."
+    echo "Created server/.app-runtime-config.json from .app-runtime-config.example.json — set API keys and models before using the API (evaluationProvider defaults to single-agent)."
   else
-    printf '%s\n' '{"version":1}' >.app-runtime-config.json
-    echo "Created minimal server/.app-runtime-config.json — add API keys and models."
+    printf '%s\n' '{"version":1,"evaluationProvider":"single-agent"}' >.app-runtime-config.json
+    echo "Created minimal server/.app-runtime-config.json — add API keys and models (evaluationProvider is single-agent)."
   fi
 fi
 

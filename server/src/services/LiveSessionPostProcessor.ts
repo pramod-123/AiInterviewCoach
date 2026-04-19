@@ -18,6 +18,8 @@ import {
 import type { AppPaths } from "../infrastructure/AppPaths.js";
 import { writeE2eSpeechAnalysisArtifacts } from "./e2e/E2eSpeechAnalysisArtifacts.js";
 import type { SpeechTranscriptionEvaluationOrchestrator } from "./SpeechTranscriptionEvaluationOrchestrator.js";
+import type { SpeechTranscriptionEvaluationOrchestratorFactory } from "./SpeechTranscriptionEvaluationOrchestratorFactory.js";
+import { assertMandatoryInterviewApiConfig } from "./mandatoryInterviewApiEnv.js";
 import { codeSnapshotsFromTimelineSec } from "./codeSnapshotsFromTimelineSec.js";
 import { FfmpegRunner, ffprobeFormatDurationSec } from "../media/ffmpegExtract.js";
 import { transcriptionToSrt } from "../media/transcriptFormatting.js";
@@ -44,7 +46,8 @@ export class LiveSessionPostProcessor {
     private readonly runInTransaction: AppTransactionRunner,
     private readonly paths: AppPaths,
     private readonly files: IAppFileStore,
-    private readonly speechAnalysis: SpeechTranscriptionEvaluationOrchestrator,
+    /** Built fresh each {@link run} so merged env / runtime file changes apply without restarting the process. */
+    private readonly orchestratorFactory: SpeechTranscriptionEvaluationOrchestratorFactory,
     private readonly log: FastifyBaseLogger,
   ) {}
 
@@ -276,6 +279,16 @@ export class LiveSessionPostProcessor {
       ? await tryLoadGeminiRealtimeForLiveSession(this.paths, this.db, sessionId)
       : null;
 
+    let speechAnalysis: SpeechTranscriptionEvaluationOrchestrator;
+    try {
+      speechAnalysis = this.orchestratorFactory.create();
+      assertMandatoryInterviewApiConfig(speechAnalysis);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.failJob(sessionId, jobId, `Interview pipeline not configured: ${message}`);
+      return;
+    }
+
     let transcription: SpeechTranscription | undefined;
     let transcriptSource: "gemini_live_realtime" | "local_stt" = "local_stt";
     let geminiUtterancesForRows: GeminiDerivedUtterance[] | null = null;
@@ -292,9 +305,9 @@ export class LiveSessionPostProcessor {
       }
 
       if (transcription === undefined) {
-        const rawTx = await this.speechAnalysis.transcribeFromFile(audioWav);
+        const rawTx = await speechAnalysis.transcribeFromFile(audioWav);
         const labeledSegments = rawTx.segments.map(
-          (seg) => new SpeechSegment(seg.startSec, seg.endSec, seg.text, ""),
+          (seg: SpeechSegment) => new SpeechSegment(seg.startSec, seg.endSec, seg.text, ""),
         );
         transcription = new SpeechTranscription(
           labeledSegments,
@@ -369,7 +382,7 @@ export class LiveSessionPostProcessor {
         }
       });
 
-      const evaluation = await this.speechAnalysis.evaluatePersistedJob(jobId);
+      const evaluation = await speechAnalysis.evaluatePersistedJob(jobId);
 
       await writeE2eSpeechAnalysisArtifacts(this.files, artifactDir, jobId, transcription, evaluation);
 

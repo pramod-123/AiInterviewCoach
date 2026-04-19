@@ -51,7 +51,7 @@ export class GeminiLlmClient implements LlmClient {
 
   async transcribeFromAudioFile(_audioFilePath: string): Promise<SpeechTranscription> {
     throw new Error(
-      "Gemini LlmClient does not implement audio.transcriptions; speech-to-text uses the local Whisper CLI (LOCAL_WHISPER_EXECUTABLE, WHISPER_MODEL in .env).",
+      "Gemini LlmClient does not implement audio.transcriptions; speech-to-text uses the local Whisper CLI (localWhisperExecutable, whisperModel in server/.app-runtime-config.json or merged env).",
     );
   }
 

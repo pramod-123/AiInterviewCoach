@@ -140,7 +140,7 @@ export class AnthropicLlmClient implements LlmClient {
 
   async transcribeFromAudioFile(_audioFilePath: string): Promise<SpeechTranscription> {
     throw new Error(
-      "Anthropic LlmClient does not support audio transcription; speech-to-text uses the local Whisper CLI (LOCAL_WHISPER_EXECUTABLE, WHISPER_MODEL in .env).",
+      "Anthropic LlmClient does not support audio transcription; speech-to-text uses the local Whisper CLI (localWhisperExecutable, whisperModel in server/.app-runtime-config.json or merged env).",
     );
   }
 }

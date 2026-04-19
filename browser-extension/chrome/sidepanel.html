@@ -65,6 +65,9 @@
       <main class="sp-main" id="spRecorderMain">
         <div class="sp-scroll-body">
           <div class="sp-session-stack">
+            <div id="spInterviewApiBanner" class="ic-interview-api-banner hidden" role="status">
+              <p id="spInterviewApiBannerText" class="ic-interview-api-banner-text"></p>
+            </div>
             <p id="meta" class="sp-meta-line"></p>
 
             <div class="session-hero">
@@ -107,7 +110,7 @@
               </p>
               <p>
                 With <strong>Voice AI interviewer</strong> on, your server must expose the Gemini Live WebSocket (set
-                <code>GEMINI_API_KEY</code> and <code>GEMINI_LIVE_MODEL</code> in <code>server/.env</code> and restart).
+                keys and models in Server config or <code>server/.app-runtime-config.json</code>; Save applies without restarting the server).
                 The problem text is sent to the server before the voice link starts.
               </p>
             </div>
@@ -216,6 +219,7 @@
       </div>
     </div>
 
+    <script src="icAppConfigFlags.js"></script>
     <script src="vendor/prism/prism-bundle.min.js" data-manual></script>
     <script src="markdownRender.js"></script>
     <script src="resultView.js"></script>

@@ -44,6 +44,13 @@
         <p class="hero-sub" id="heroSub">LeetCode capture • Standby</p>
       </section>
 
+      <div id="popupInterviewBanner" class="ic-interview-api-banner hidden" role="status">
+        <p id="popupInterviewBannerText" class="ic-interview-api-banner-text"></p>
+        <button type="button" class="btn-secondary ic-interview-api-banner-btn" id="popupBannerOpenSessions">
+          Open Sessions (Server config)
+        </button>
+      </div>
+
       <label class="mic-bento mic-bento-mic" for="chkPopupMic">
         <span class="mic-bento-inner">
           <span class="mic-icon-wrap">
@@ -103,6 +110,7 @@
       <p id="status"></p>
     </main>
 
+    <script src="icAppConfigFlags.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

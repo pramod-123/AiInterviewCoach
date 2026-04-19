@@ -37,7 +37,7 @@
     "</section>" +
     '<section class="ac-card">' +
     "<h2>Voice bridge (WebSocket)</h2>" +
-    '<p class="ac-hint">Realtime provider lists both vendors; each choice stays disabled until that API key exists. Model and voice fields unlock per vendor API key. Choices come from <code>.app-runtime-config.json</code> (<code>openaiRealtimeModelOptions</code>, …) or, when an array is omitted, from shipped <code>server/.app-runtime-config.defaults.json</code>. To use another id, add it to the runtime file or edit the defaults file on the server.</p>' +
+    '<p class="ac-hint">Realtime provider lists OpenAI and Gemini; each vendor option stays disabled until that API key exists. When neither key is set, the provider control is disabled too. Model and voice fields unlock per vendor API key. Choices come from <code>.app-runtime-config.json</code> (<code>openaiRealtimeModelOptions</code>, …) or, when an array is omitted, from shipped <code>server/.app-runtime-config.defaults.json</code>. To use another id, add it to the runtime file or edit the defaults file on the server.</p>' +
     "<label>Realtime provider " +
     '<select data-ic="liveRealtimeProvider">' +
     '<option value="">Select…</option>' +
@@ -197,6 +197,7 @@
    * @property {(normalized: string) => void} [setApiBase]
    * @property {(normalized: string) => void | Promise<void>} [persistApiBase]
    * @property {boolean} [skipInitialLoad]
+   * @property {() => void | Promise<void>} [onAfterSuccessfulSave] host UI refresh (same tab does not get chrome.storage.onChanged for its own writes)
    */
 
   /**
@@ -215,6 +216,7 @@
     }
 
     var elAny = /** @type {any} */ (mountPoint);
+    elAny.__icOnAfterSuccessfulSave = opts.onAfterSuccessfulSave;
     var prevCtl = elAny.__icSrvCtl;
     if (prevCtl && typeof prevCtl.reload === "function" && mountPoint.dataset.icSrvMounted === "1") {
       prevCtl.syncFromParent();
@@ -343,7 +345,7 @@
       if (liveRealtimeProvider) {
         setSelectOptionDisabled(liveRealtimeProvider, "openai", !o);
         setSelectOptionDisabled(liveRealtimeProvider, "gemini", !g);
-        liveRealtimeProvider.disabled = false;
+        liveRealtimeProvider.disabled = !o && !g;
         clampSelectToEnabledOption(liveRealtimeProvider, liveRealtimeProvider.value);
       }
 
@@ -677,6 +679,18 @@
         }
         setStatus("Saved. Refreshing…", false);
         await loadConfig();
+        var afterSave = elAny.__icOnAfterSuccessfulSave;
+        if (typeof afterSave === "function") {
+          void Promise.resolve(afterSave());
+        }
+        if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+          void chrome.storage.local.set({ icRuntimeConfigSavedAt: Date.now() });
+        }
+        try {
+          document.dispatchEvent(new CustomEvent("ic-server-config-saved"));
+        } catch (_) {
+          /* ignore */
+        }
       } catch (e) {
         var msg =
           e && typeof e === "object" && "message" in e && typeof e.message === "string"

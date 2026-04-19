@@ -49,6 +49,12 @@ export type AppRuntimeConfigV1 = {
   evaluationProvider?: string;
   /** Path to local Whisper CLI; merged as `LOCAL_WHISPER_EXECUTABLE` when set. */
   localWhisperExecutable?: string;
+  /** Prisma / LibSQL URL; merged as `DATABASE_URL` when set (no `.env` required). */
+  databaseUrl?: string;
+  /** HTTP bind host; merged as `HOST` when set. */
+  listenHost?: string;
+  /** HTTP bind port (digits only); merged as `PORT` when set. */
+  listenPort?: string;
 };
 
 /** GET `/api/app-config` — no raw secrets. */
@@ -77,6 +83,14 @@ export type AppRuntimeConfigPublicV1 = {
   whisperModel: string;
   evaluationProvider: string;
   localWhisperExecutable: string;
+  listenHost: string;
+  listenPort: string;
+  /** True when `databaseUrl` is set in the runtime file (GET never returns the raw URL). */
+  databaseUrlConfigured: boolean;
+  /** True when the server built the full speech + evaluation stack for live-session post-processing. */
+  interviewApiEnabled: boolean;
+  /** When {@link interviewApiEnabled} is false, short error from the last readiness check (no secrets). */
+  interviewApiDisableReason: string;
 };
 
 const STRING_PATCH_KEYS = new Set([
@@ -95,6 +109,9 @@ const STRING_PATCH_KEYS = new Set([
   "whisperModel",
   "evaluationProvider",
   "localWhisperExecutable",
+  "databaseUrl",
+  "listenHost",
+  "listenPort",
 ]);
 
 const ARRAY_PATCH_KEYS = new Set([
@@ -192,6 +209,7 @@ export function readRuntimeAppConfigDefaultsBundle(paths: AppPaths): RuntimeDefa
 export function toPublicRuntimeConfig(
   paths: AppPaths,
   cfg: AppRuntimeConfigV1 | null,
+  runtimeState?: { interviewApiEnabled: boolean; interviewApiDisableReason: string },
 ): AppRuntimeConfigPublicV1 {
   const c = cfg ?? { version: 1 };
   const { defaults: d } = readRuntimeAppConfigDefaultsBundle(paths);
@@ -228,6 +246,11 @@ export function toPublicRuntimeConfig(
     whisperModel: (c.whisperModel ?? "").trim(),
     evaluationProvider: (c.evaluationProvider ?? "").trim(),
     localWhisperExecutable: (c.localWhisperExecutable ?? "").trim(),
+    listenHost: (c.listenHost ?? "").trim(),
+    listenPort: (c.listenPort ?? "").trim(),
+    databaseUrlConfigured: Boolean(c.databaseUrl?.trim()),
+    interviewApiEnabled: runtimeState?.interviewApiEnabled ?? true,
+    interviewApiDisableReason: (runtimeState?.interviewApiDisableReason ?? "").trim(),
   };
 }
 
@@ -343,6 +366,9 @@ export function getMergedAppEnv(paths: AppPaths): NodeJS.ProcessEnv {
       set("WHISPER_MODEL", file.whisperModel);
       set("EVALUATION_PROVIDER", file.evaluationProvider);
       set("LOCAL_WHISPER_EXECUTABLE", file.localWhisperExecutable);
+      set("DATABASE_URL", file.databaseUrl);
+      set("HOST", file.listenHost);
+      set("PORT", file.listenPort);
     }
     const env = base as NodeJS.ProcessEnv;
     mergedEnvCache = { mtimeMs: st.mtimeMs, env };
@@ -354,7 +380,8 @@ export function getMergedAppEnv(paths: AppPaths): NodeJS.ProcessEnv {
 }
 
 /**
- * Merge JSON patch into the runtime config file. Empty string removes that field (fall back to `.env`).
+ * Merge JSON patch into the runtime config file. Empty string removes that field (falls back to process
+ * environment or built-in defaults where applicable).
  * Unknown keys are ignored. `version` is forced to 1.
  */
 export async function patchRuntimeAppConfig(

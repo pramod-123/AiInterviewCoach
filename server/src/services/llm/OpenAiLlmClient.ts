@@ -18,6 +18,11 @@ export class OpenAiLlmClient implements LlmClient {
   constructor(
     private readonly client: OpenAI,
     private readonly modelId: string,
+    /**
+     * LangChain defaults to `process.env.OPENAI_API_KEY`; runtime keys may exist only on the merged
+     * env object from `.app-runtime-config.json`, so we pass the same key used for {@link client}.
+     */
+    private readonly apiKey: string,
     private readonly speechModelId: string = DEFAULT_OPENAI_STT_MODEL,
   ) {}
 
@@ -29,10 +34,12 @@ export class OpenAiLlmClient implements LlmClient {
     return new ChatOpenAI({
       model: this.modelId,
       temperature,
+      apiKey: this.apiKey,
     });
   }
 
   static tryCreate(env: NodeJS.ProcessEnv = process.env): OpenAiLlmClient | null {
+    const apiKey = env.OPENAI_API_KEY?.trim() ?? "";
     const client = tryCreateOpenAiClient(env);
     if (!client) {
       return null;
@@ -41,7 +48,7 @@ export class OpenAiLlmClient implements LlmClient {
     if (!modelId) {
       return null;
     }
-    return new OpenAiLlmClient(client, modelId);
+    return new OpenAiLlmClient(client, modelId, apiKey);
   }
 
   async transcribeFromAudioFile(audioFilePath: string): Promise<SpeechTranscription> {

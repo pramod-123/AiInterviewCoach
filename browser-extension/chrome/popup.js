@@ -5,6 +5,79 @@ const LEETCODE_URL_RE = /^https:\/\/([a-z0-9-]+\.)*leetcode\.com\//i;
 const MIC_HINT =
   "Chrome: Settings → Privacy → Site settings → Microphone → allow this extension. Or click the extension icon → Site settings.";
 
+const INTERVIEW_API_OFF_HINT =
+  "Live interviews are off on this server until API keys, local Whisper, and evaluation settings are complete. Open Sessions → Server settings (gear), fill in the fields, and Save — the server reloads that file without a restart.";
+
+const LIVE_VOICE_NO_KEYS_HINT =
+  "Add an OpenAI or Gemini API key in Server config (Sessions or side panel → Settings) to use live voice.";
+
+const LIVE_VOICE_WRONG_VENDOR_HINT =
+  "Live realtime is set to a vendor without an API key — pick OpenAI or Gemini in Server config to match your keys.";
+
+/**
+ * @param {string} apiBase
+ */
+async function applyInterviewApiGate(apiBase) {
+  const banner = document.getElementById("popupInterviewBanner");
+  const bannerText = document.getElementById("popupInterviewBannerText");
+  const startBtn = document.getElementById("start");
+  const chkMic = document.getElementById("chkPopupMic");
+  const chkLive = document.getElementById("chkPopupLiveInterviewer");
+  if (typeof window.ICFetchPublicAppConfig !== "function" || typeof window.ICLiveRealtimeFromPublicConfig !== "function") {
+    return;
+  }
+  const cfg = await window.ICFetchPublicAppConfig(apiBase);
+  const interviewApiEnabled =
+    cfg == null || typeof cfg.interviewApiEnabled !== "boolean" ? true : Boolean(cfg.interviewApiEnabled);
+  const lr = window.ICLiveRealtimeFromPublicConfig(cfg);
+
+  if (!interviewApiEnabled) {
+    banner?.classList.remove("hidden");
+    if (bannerText) {
+      const fromServer =
+        cfg && typeof cfg.interviewApiDisableReason === "string" && cfg.interviewApiDisableReason.trim()
+          ? cfg.interviewApiDisableReason.trim()
+          : "";
+      bannerText.textContent = fromServer
+        ? `${fromServer} — Open Sessions → Server settings (gear), Save.`
+        : INTERVIEW_API_OFF_HINT;
+    }
+    if (startBtn) {
+      startBtn.disabled = true;
+    }
+    if (chkMic) {
+      chkMic.disabled = true;
+    }
+    if (chkLive) {
+      chkLive.disabled = true;
+      chkLive.removeAttribute("title");
+    }
+    return;
+  }
+
+  banner?.classList.add("hidden");
+  if (startBtn) {
+    startBtn.disabled = false;
+  }
+  if (chkMic) {
+    chkMic.disabled = false;
+  }
+
+  if (chkLive) {
+    if (!lr.selectedProviderHasKey) {
+      chkLive.disabled = true;
+      chkLive.checked = false;
+      chkLive.setAttribute(
+        "title",
+        lr.anyRealtimeKey ? LIVE_VOICE_WRONG_VENDOR_HINT : LIVE_VOICE_NO_KEYS_HINT,
+      );
+    } else {
+      chkLive.disabled = false;
+      chkLive.removeAttribute("title");
+    }
+  }
+}
+
 /**
  * Side panels often get NotAllowedError / “Permission dismissed” for getUserMedia.
  * Requesting here (toolbar popup) uses a gesture Chrome accepts; tracks are stopped immediately.
@@ -73,8 +146,20 @@ document.getElementById("start").addEventListener("click", async () => {
   const rawBase = document.getElementById("apiBase")?.value ?? "";
   const apiBase = rawBase.trim().replace(/\/$/, "") || DEFAULT_API;
   const wantMic = document.getElementById("chkPopupMic")?.checked !== false;
-  const liveInterviewerEnabled =
-    document.getElementById("chkPopupLiveInterviewer")?.checked !== false;
+  const chkLiveEl = document.getElementById("chkPopupLiveInterviewer");
+  let liveInterviewerEnabled = false;
+  if (chkLiveEl && !chkLiveEl.disabled) {
+    if (
+      typeof window.ICFetchPublicAppConfig === "function" &&
+      typeof window.ICLiveRealtimeFromPublicConfig === "function"
+    ) {
+      const cfg = await window.ICFetchPublicAppConfig(apiBase);
+      const lr = window.ICLiveRealtimeFromPublicConfig(cfg);
+      liveInterviewerEnabled = Boolean(lr.selectedProviderHasKey && chkLiveEl.checked);
+    } else {
+      liveInterviewerEnabled = chkLiveEl.checked !== false;
+    }
+  }
   await chrome.storage.local.set({
     apiBase,
     preferRecordMic: wantMic,
@@ -153,9 +238,17 @@ document.getElementById("start").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("openSessions")?.addEventListener("click", () => {
+function openSessionsTab() {
   void chrome.tabs.create({ url: chrome.runtime.getURL("sessions.html") });
+}
+
+document.getElementById("openSessions")?.addEventListener("click", () => {
+  openSessionsTab();
   window.close();
+});
+
+document.getElementById("popupBannerOpenSessions")?.addEventListener("click", () => {
+  openSessionsTab();
 });
 
 document.getElementById("btnSettings")?.addEventListener("click", () => {
@@ -204,4 +297,29 @@ window.addEventListener("storage", (e) => {
 });
 syncPopupThemeToggleUi();
 
-void loadSettings();
+async function popupRefreshInterviewGateFromApiBase() {
+  const rawBase = document.getElementById("apiBase")?.value ?? "";
+  const apiBase = rawBase.trim().replace(/\/$/, "") || DEFAULT_API;
+  await applyInterviewApiGate(apiBase);
+}
+
+void loadSettings().then(() => popupRefreshInterviewGateFromApiBase());
+
+document.getElementById("apiBase")?.addEventListener("change", () => {
+  void popupRefreshInterviewGateFromApiBase();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    void popupRefreshInterviewGateFromApiBase();
+  }
+});
+
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.icRuntimeConfigSavedAt) {
+      return;
+    }
+    void popupRefreshInterviewGateFromApiBase();
+  });
+}

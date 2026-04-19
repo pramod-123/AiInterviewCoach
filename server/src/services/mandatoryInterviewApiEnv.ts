@@ -25,7 +25,7 @@ export function assertMandatoryInterviewApiConfig(
 
   if (!speechAnalysis) {
     throw new Error(
-      "Interview API requires speech-to-text and evaluation. Speech-to-text uses the local Whisper CLI: set LOCAL_WHISPER_EXECUTABLE (optional WHISPER_MODEL) in .env or server/.app-runtime-config.json. Set EVALUATION_PROVIDER and LLM_PROVIDER (and API keys / model ids) in server/.app-runtime-config.json alongside .env.",
+      "Interview API requires speech-to-text and evaluation. Speech-to-text uses the local Whisper CLI: set localWhisperExecutable (optional whisperModel) in server/.app-runtime-config.json. Set evaluationProvider, llmProvider, and API keys / model ids in that file (or matching process environment variables).",
     );
   }
 }

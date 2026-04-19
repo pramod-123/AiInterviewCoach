@@ -5,11 +5,11 @@
 #
 # One-liner (public GitHub API):
 #   curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh | bash
-# Same install, stdin stays your terminal (menus / prompts behave like ./install.sh):
+# Same install, stdin stays your terminal (y/n prompts for zsh snippet, extension download, etc.):
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh)"
-# Fully unattended (CI / no TTY): secrets must be passed via env; installer auto-yes without prompts.
+# Fully unattended (CI / no TTY): auto-yes; optional API keys only from env when INSTALL_CONSUMER_YES=1.
 #
-# From a clone (stdin is a TTY): same prompts; y/n as usual unless INSTALL_CONSUMER_YES=1.
+# From a clone (stdin is a TTY): y/n as usual unless INSTALL_CONSUMER_YES=1. API keys are not prompted — use Server config in Chrome after install.
 #   ./install.sh
 #
 # Developers from git should use ./install-dev.sh (npm in server/, dev server).
@@ -41,8 +41,7 @@ INSTALL_PREFIX="${INSTALL_PREFIX:-"${HOME}/.local/share/ai-interview-copilot"}"
 RUN_SERVER_AFTER=false
 # curl … | bash: stdin is the script, so it must not be used for prompts (would consume the script).
 # If there is no usable controlling terminal (typical CI), default to fully non-interactive: auto-yes
-# all y/n and take API keys only from the environment. In a normal Terminal, /dev/tty exists — we do not
-# force INSTALL_CONSUMER_YES, so prompt()/read_secret_prompt on /dev/tty restores interactive keys.
+# all y/n. Optional API keys merge from env only when INSTALL_CONSUMER_YES=1.
 if [[ ! -t 0 ]]; then
   if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
     INSTALL_CONSUMER_YES="${INSTALL_CONSUMER_YES:-1}"
@@ -183,7 +182,7 @@ install_welcome() {
   printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_DIM}" "Installer · ${VERSION_WIRED}" "${C_ACCENT_B}" "${C_RST}"
   printf '%b╚══════════════════════════════════════════════════════════════╝%b\n' "${C_ACCENT_B}" "${C_RST}"
   say ""
-  say_dim "Release server + Chrome extension · host tools (ffmpeg/ffprobe, Python 3, jq, …) · openai-whisper venv (required local STT) · SQLite, .env (HOST/PORT/DATABASE_URL), and .app-runtime-config.json"
+  say_dim "Release server + Chrome extension · host tools (ffmpeg/ffprobe, Python 3, jq, …) · openai-whisper venv (required local STT) · SQLite + .app-runtime-config.json (databaseUrl, listenHost, listenPort, keys; .env optional)"
   say ""
 }
 
@@ -215,131 +214,10 @@ prompt_yn() {
   [[ "$r" == y || "$r" == yes ]]
 }
 
-# Read API key from /dev/tty (echoed — paste is easier to verify).
-read_secret_prompt() {
-  local prompt_text="$1"
-  local val=""
-  read -r -p "${C_PROMPT}${prompt_text}${C_DIM}:${C_RST} " val </dev/tty || true
-  printf '%s' "$val"
-}
-
 trim_crlf() {
   local s="$1"
   s="${s//$'\r'/}"
   printf '%s' "$s" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
-}
-
-# Interactive menus on /dev/tty: ↑/↓ · Enter/Space · number keys. Set globals choose_rt_index / choose_eval_index.
-
-# Sets choose_rt_index: 0=OpenAI realtime, 1=Gemini Live.
-choose_realtime_provider_menu() {
-  local labels=(
-    "OpenAI — realtime / voice bridge (WebSocket)"
-    "Google Gemini — Live audio (WebSocket)"
-  )
-  local sel=0
-  local n=${#labels[@]}
-  local menu_lines=$((2 + n))
-  local drawn=0
-  local k1 k2
-  while true; do
-    if [[ "$drawn" -eq 1 ]]; then
-      printf '\033[%dA' "$menu_lines" >/dev/tty
-    fi
-    drawn=1
-    printf '%b  %sRealtime provider%s  %s↑/↓ · Enter/Space · 1/2%s\n' "${C_BAR}" "${C_ACCENT_B}" "${C_RST}" "${C_DIM}" "${C_RST}" >/dev/tty
-    printf '%b  %s────────────────────────────────────────────────────────%s\n' "${C_BAR}" "${C_DIM}" "${C_RST}" >/dev/tty
-    local i
-    for ((i = 0; i < n; i++)); do
-      if [[ "$i" -eq "$sel" ]]; then
-        printf '  %b ▶ %s%s\033[K\n' "${C_MENU_HI}" "${labels[$i]}" "${C_RST}" >/dev/tty
-      else
-        printf '  %b    %s%s\033[K\n' "${C_MENU_LO}" "${labels[$i]}" "${C_RST}" >/dev/tty
-      fi
-    done
-    if ! IFS= read -r -s -n1 k1 </dev/tty 2>/dev/null; then
-      choose_rt_index=0
-      printf '\n' >/dev/tty
-      return 1
-    fi
-    if [[ "$k1" == $'\e' ]]; then
-      IFS= read -r -s -n2 k2 </dev/tty 2>/dev/null || true
-      case "$k2" in
-        '[A' | 'OA') sel=$(((sel + n - 1) % n)) ;;
-        '[B' | 'OB') sel=$(((sel + 1) % n)) ;;
-      esac
-    elif [[ "$k1" == $'\n' || "$k1" == $'\r' || -z "$k1" || "$k1" == ' ' ]]; then
-      choose_rt_index=$sel
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == '1' ]]; then
-      choose_rt_index=0
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == '2' ]]; then
-      choose_rt_index=1
-      printf '\n' >/dev/tty
-      return 0
-    fi
-  done
-}
-
-# Sets choose_eval_index: 0=OpenAI, 1=Gemini, 2=Anthropic (evaluation / rubric LLM only).
-choose_eval_llm_menu() {
-  local labels=(
-    "OpenAI — evaluation / rubric LLM"
-    "Google Gemini — evaluation / rubric LLM"
-    "Anthropic — evaluation / rubric LLM"
-  )
-  local sel=0
-  local n=${#labels[@]}
-  local menu_lines=$((2 + n))
-  local drawn=0
-  local k1 k2
-  while true; do
-    if [[ "$drawn" -eq 1 ]]; then
-      printf '\033[%dA' "$menu_lines" >/dev/tty
-    fi
-    drawn=1
-    printf '%b  %sEvaluation LLM%s  %s↑/↓ · Enter/Space · 1/2/3%s\n' "${C_BAR}" "${C_ACCENT_B}" "${C_RST}" "${C_DIM}" "${C_RST}" >/dev/tty
-    printf '%b  %s────────────────────────────────────────────────────────%s\n' "${C_BAR}" "${C_DIM}" "${C_RST}" >/dev/tty
-    local i
-    for ((i = 0; i < n; i++)); do
-      if [[ "$i" -eq "$sel" ]]; then
-        printf '  %b ▶ %s%s\033[K\n' "${C_MENU_HI}" "${labels[$i]}" "${C_RST}" >/dev/tty
-      else
-        printf '  %b    %s%s\033[K\n' "${C_MENU_LO}" "${labels[$i]}" "${C_RST}" >/dev/tty
-      fi
-    done
-    if ! IFS= read -r -s -n1 k1 </dev/tty 2>/dev/null; then
-      choose_eval_index=0
-      printf '\n' >/dev/tty
-      return 1
-    fi
-    if [[ "$k1" == $'\e' ]]; then
-      IFS= read -r -s -n2 k2 </dev/tty 2>/dev/null || true
-      case "$k2" in
-        '[A' | 'OA') sel=$(((sel + n - 1) % n)) ;;
-        '[B' | 'OB') sel=$(((sel + 1) % n)) ;;
-      esac
-    elif [[ "$k1" == $'\n' || "$k1" == $'\r' || -z "$k1" || "$k1" == ' ' ]]; then
-      choose_eval_index=$sel
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == '1' ]]; then
-      choose_eval_index=0
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == '2' ]]; then
-      choose_eval_index=1
-      printf '\n' >/dev/tty
-      return 0
-    elif [[ "$k1" == '3' ]]; then
-      choose_eval_index=2
-      printf '\n' >/dev/tty
-      return 0
-    fi
-  done
 }
 
 # Append aicopilot / aicopilot-server helpers to ~/.zshrc (once; uses ZSH_LAUNCHER_MARKER).
@@ -355,7 +233,7 @@ maybe_append_zsh_launcher_snippet() {
   if [[ "${AUTO_YES}" == "1" ]]; then
     say_dim "→ Append aicopilot shortcuts to ~/.zshrc? — yes (INSTALL_CONSUMER_YES=1)"
     do_append=true
-  elif prompt_yn "Append aicopilot shortcuts to ~/.zshrc? (aicopilot = kill listener on PORT from .env, then start server)" "y"; then
+  elif prompt_yn "Append aicopilot shortcuts to ~/.zshrc? (aicopilot = kill listener on listenPort in .app-runtime-config.json or PORT in .env, then start server)" "y"; then
     do_append=true
   fi
   if [[ "$do_append" != true ]]; then
@@ -391,8 +269,11 @@ aicopilot-server() {
 
 aicopilot-server-restart() {
   local root="${AI_INTERVIEW_COPILOT_HOME}"
-  local port="${AI_INTERVIEW_COPILOT_PORT:-3001}"
-  if [[ -f "${root}/.env" ]]; then
+  local port="${AI_INTERVIEW_COPILOT_PORT:-}"
+  if [[ -z "$port" && -f "${root}/.app-runtime-config.json" ]] && command -v jq >/dev/null 2>&1; then
+    port="$(jq -r '(.listenPort // "")|tostring' "${root}/.app-runtime-config.json" 2>/dev/null | tr -d '[:space:]')"
+  fi
+  if [[ -z "$port" || ! "$port" =~ ^[0-9]+$ ]] && [[ -f "${root}/.env" ]]; then
     local line
     line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${root}/.env" 2>/dev/null | tail -1)
     if [[ -n "$line" ]]; then
@@ -700,7 +581,23 @@ ensure_app_runtime_config_file() {
     cp .app-runtime-config.example.json .app-runtime-config.json
     return 0
   fi
-  printf '%s\n' '{"version":1}' >.app-runtime-config.json
+  printf '%s\n' '{"version":1,"evaluationProvider":"single-agent"}' >.app-runtime-config.json
+}
+
+# Set LibSQL DATABASE_URL in .app-runtime-config.json (Prisma / server). Requires jq.
+merge_database_url_into_app_runtime_config() {
+  local root="$1"
+  local url="$2"
+  local cfg="${root}/.app-runtime-config.json"
+  [[ -f "$cfg" ]] || return 1
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aic-dburl.XXXXXX")"
+  if ! jq --arg u "$url" '.version = 1 | .databaseUrl = $u' "$cfg" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  return 0
 }
 
 # Fill empty model / voice fields from shipped .app-runtime-config.defaults.json (first preset in each list).
@@ -729,6 +626,8 @@ apply_shipped_runtime_model_defaults() {
         then .anthropicModelId = $d.anthropicEvalModelOptions[0] else . end
     | if (($cfg.geminiModelId // "") | tostring | length == 0) and (($d.geminiEvalModelOptions // []) | length > 0)
         then .geminiModelId = $d.geminiEvalModelOptions[0] else . end
+    | if (($cfg.evaluationProvider // "") | tostring | length == 0) and (($d.evaluationProvider // "") | tostring | length > 0)
+        then .evaluationProvider = $d.evaluationProvider else . end
   ' "$cfg" "$def" >"$tmp"; then
     rm -f "$tmp"
     return 1
@@ -737,8 +636,9 @@ apply_shipped_runtime_model_defaults() {
 }
 
 # Merge non-empty fields into .app-runtime-config.json (camelCase keys). Uses jq (required by this installer).
-# Args: install_root openai anthropic gemini gemini_live_model llm local_whisper_exe set_eval_default(0|1) live_realtime_provider patch_providers(0|1)
+# Args: install_root openai anthropic gemini gemini_live_model llm local_whisper_exe live_realtime_provider patch_providers(0|1)
 # When patch_providers=1, empty llm/live args remove llmProvider / liveRealtimeProvider (installer keys pass). When 0, empty args leave those keys unchanged (e.g. whisper-only merge).
+# Empty evaluationProvider is always set to single-agent.
 merge_app_runtime_config_snippet() {
   local root="$1"
   local cfg="${root}/.app-runtime-config.json"
@@ -749,11 +649,9 @@ merge_app_runtime_config_snippet() {
   gemini_model="$(trim_crlf "${5:-}")"
   llm_choice="$(trim_crlf "${6:-}")"
   whisper_sh="$(trim_crlf "${7:-}")"
-  local setdef_json="false"
-  [[ "${8:-0}" == "1" ]] && setdef_json="true"
-  live_rt="$(trim_crlf "${9:-}" | tr '[:upper:]' '[:lower:]')"
+  live_rt="$(trim_crlf "${8:-}" | tr '[:upper:]' '[:lower:]')"
   local patch_pv_json="false"
-  [[ "${10:-0}" == "1" ]] && patch_pv_json="true"
+  [[ "${9:-0}" == "1" ]] && patch_pv_json="true"
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/aic-rt-merge.XXXXXX")"
   if ! { [[ -f "$cfg" ]] && [[ -s "$cfg" ]] && cat "$cfg" || printf '%s\n' '{"version":1}'; } | jq -s \
@@ -786,7 +684,7 @@ merge_app_runtime_config_snippet() {
         (if ($lr | length) > 0 and ($lr == "openai" or $lr == "gemini") then .liveRealtimeProvider = $lr else . end)
       end
     | .version = 1
-    | if $setdef and ((.evaluationProvider // "") | length == 0) then .evaluationProvider = "single-agent" else . end
+    | if ((.evaluationProvider // "") | length == 0) then .evaluationProvider = "single-agent" else . end
     ' >"$tmp"; then
     rm -f "$tmp"
     printf '%s\n' "merge_app_runtime_config_snippet: jq failed while updating ${cfg} (invalid JSON or jq not installed)." >&2
@@ -944,27 +842,26 @@ main() {
   fi
   mkdir -p "${INSTALL_PREFIX}/data"
   local db_file="${INSTALL_PREFIX}/data/app.db"
-  if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
-    upsert_env_line "DATABASE_URL" "DATABASE_URL=\"file:${db_file}\""
-  fi
+  local db_url="file:${db_file}"
   ensure_app_runtime_config_file
+  if ! merge_database_url_into_app_runtime_config "${INSTALL_PREFIX}" "${db_url}"; then
+    say_warn "Could not set databaseUrl in .app-runtime-config.json (jq missing or invalid JSON). Set databaseUrl manually, then run: npx prisma db push"
+  fi
   if ! apply_shipped_runtime_model_defaults "${INSTALL_PREFIX}"; then
     say_warn "Could not merge default model ids from .app-runtime-config.defaults.json (jq or file issue). You can set models in Server config later."
   fi
-  tick_done "Data directory, DATABASE_URL, and .app-runtime-config.json ready"
-  bump_install_progress "Data / .env base"
+  tick_done "Data directory and .app-runtime-config.json ready (databaseUrl set for SQLite)"
+  bump_install_progress "Data / runtime config"
 
-  banner "API keys (optional)"
+  banner "Runtime configuration"
+  say_dim "API keys and providers are not collected during install. Use Chrome → Server config (extension) after install, then restart the server."
   local openai_key="" anthropic_key="" gemini_key="" gemini_model=""
   local llm_choice="openai"
   local live_rt_for_merge=""
   local llm_for_merge=""
-  local rt_key_present=0
 
   if [[ "${AUTO_YES}" == "1" ]]; then
-    say_dim "INSTALL_CONSUMER_YES=1: optional keys from env → .app-runtime-config.json; models use shipped defaults."
-    say_dim "Env: LIVE_REALTIME_PROVIDER (openai|gemini), OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER (openai|gemini|anthropic)."
-    say_dim "A realtime or LLM provider is written only when its API key is set (skipped keys → omit provider until Server config)."
+    say_dim "INSTALL_CONSUMER_YES=1: merging optional keys from env when set (LIVE_REALTIME_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER)."
     local live_rt_raw
     live_rt_raw="$(trim_crlf "${LIVE_REALTIME_PROVIDER:-}")"
     live_rt_raw="$(printf '%s' "$live_rt_raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
@@ -977,89 +874,33 @@ main() {
     elif [[ "$live_rt_raw" == "gemini" && -n "$gemini_key" ]]; then
       live_rt_for_merge="gemini"
     fi
-  else
-    if [[ -r /dev/tty && -w /dev/tty ]]; then
-      say "${C_ACCENT}Realtime / Live bridge provider:${C_RST} ${C_DIM}↑/↓ or ${C_BOLD}1${C_RST}/${C_BOLD}2${C_RST}, Enter.${C_RST}"
-      choose_rt_index=0
-      choose_realtime_provider_menu || true
-    else
-      say_warn "No TTY for menu; skipping realtime provider in config (set keys in Server config later)."
-      choose_rt_index=0
-    fi
-    if [[ "${choose_rt_index}" -eq 1 ]]; then
-      gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
-      [[ -n "$gemini_key" ]] && rt_key_present=1
-    else
-      openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime / voice bridge (optional — Enter to skip)")")"
-      [[ -n "$openai_key" ]] && rt_key_present=1
-    fi
-
-    if [[ -r /dev/tty && -w /dev/tty ]]; then
-      say ""
-      say "${C_ACCENT}Evaluation / rubric LLM:${C_RST} ${C_DIM}↑/↓ or ${C_BOLD}1${C_RST}/${C_BOLD}2${C_RST}/${C_BOLD}3${C_RST}, Enter.${C_RST}"
-      choose_eval_index=0
-      choose_eval_llm_menu || true
-    else
-      say_warn "No TTY for menu; defaulting evaluation LLM choice to OpenAI (set LLM_PROVIDER=gemini|anthropic)."
-      choose_eval_index=0
-    fi
-    if [[ "${choose_eval_index}" -eq 1 ]]; then
-      llm_choice="gemini"
-      if [[ -z "$gemini_key" ]]; then
-        gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for evaluation (optional — Enter to skip)")")"
-      fi
-    elif [[ "${choose_eval_index}" -eq 2 ]]; then
-      llm_choice="anthropic"
-      anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key for evaluation (optional — Enter to skip)")")"
-      if [[ "${choose_rt_index}" -eq 0 && -z "$openai_key" ]]; then
-        openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime voice (optional — Enter to skip)")")"
-      elif [[ "${choose_rt_index}" -eq 1 && -z "$gemini_key" ]]; then
-        gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
-      fi
-    else
+    llm_choice="$(printf '%s' "$llm_choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    if [[ "$llm_choice" != "openai" && "$llm_choice" != "anthropic" && "$llm_choice" != "gemini" ]]; then
+      say_warn "Unrecognized LLM_PROVIDER='${llm_choice}' — using openai."
       llm_choice="openai"
-      if [[ -z "$openai_key" ]]; then
-        openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for evaluation (optional — Enter to skip)")")"
-      fi
     fi
-
-    if [[ "${choose_rt_index}" -eq 0 && "${rt_key_present}" -eq 1 ]]; then
-      live_rt_for_merge="openai"
-    elif [[ "${choose_rt_index}" -eq 1 && "${rt_key_present}" -eq 1 ]]; then
-      live_rt_for_merge="gemini"
-    fi
+    case "$llm_choice" in
+      openai) [[ -n "$openai_key" ]] && llm_for_merge="openai" ;;
+      anthropic) [[ -n "$anthropic_key" ]] && llm_for_merge="anthropic" ;;
+      gemini) [[ -n "$gemini_key" ]] && llm_for_merge="gemini" ;;
+    esac
+    gemini_model=""
+    merge_app_runtime_config_snippet "${INSTALL_PREFIX}" \
+      "${openai_key}" \
+      "${anthropic_key}" \
+      "${gemini_key}" \
+      "${gemini_model}" \
+      "${llm_for_merge}" \
+      "" \
+      "${live_rt_for_merge}" \
+      "1"
   fi
 
-  llm_choice="$(printf '%s' "$llm_choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-  if [[ "$llm_choice" != "openai" && "$llm_choice" != "anthropic" && "$llm_choice" != "gemini" ]]; then
-    say_warn "Unrecognized LLM_PROVIDER='${llm_choice}' — using openai."
-    llm_choice="openai"
-  fi
-  case "$llm_choice" in
-    openai) [[ -n "$openai_key" ]] && llm_for_merge="openai" ;;
-    anthropic) [[ -n "$anthropic_key" ]] && llm_for_merge="anthropic" ;;
-    gemini) [[ -n "$gemini_key" ]] && llm_for_merge="gemini" ;;
-  esac
-
-  gemini_model=""
-  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" \
-    "${openai_key}" \
-    "${anthropic_key}" \
-    "${gemini_key}" \
-    "${gemini_model}" \
-    "${llm_for_merge}" \
-    "" \
-    "1" \
-    "${live_rt_for_merge}" \
-    "1"
-
-  say_dim "Default models come from .app-runtime-config.defaults.json; change keys and models anytime in Chrome → Server config."
-  tick_done "Runtime config saved (keys optional, default models)"
-  bump_install_progress "Secrets / LLM"
+  tick_done "Runtime config ready (configure keys in Server config if needed)"
+  bump_install_progress "Runtime config"
 
   printf '%b%s%b\n' "${C_ACCENT}" "Prisma db push…" "${C_RST}"
-  # Prisma may not load .env before prisma.config defaults; consumer layout puts config at install root.
-  export DATABASE_URL="file:${db_file}"
+  export DATABASE_URL="${db_url}"
   npx prisma db push
   tick_done "Database schema applied (Prisma)"
   bump_install_progress "Prisma"
@@ -1081,7 +922,7 @@ main() {
 exec "${venv_whisper}/bin/whisper" "\$@"
 EOF
   chmod +x "${whisper_sh}"
-  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" "" "" "" "" "" "${whisper_sh}" "0" "" "0"
+  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" "" "" "" "" "" "${whisper_sh}" "" "0"
   tick_done "openai-whisper CLI ready (${whisper_sh})"
   bump_install_progress "openai-whisper"
 
@@ -1130,8 +971,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 LOG="${ROOT}/server.log"
-PORT=3001
-if [[ -f "${ROOT}/.env" ]]; then
+PORT=""
+if [[ -f "${ROOT}/.app-runtime-config.json" ]] && command -v jq >/dev/null 2>&1; then
+  PORT="$(jq -r '(.listenPort // "")|tostring' "${ROOT}/.app-runtime-config.json" 2>/dev/null | tr -d '[:space:]')"
+fi
+if [[ -z "${PORT}" || ! "${PORT}" =~ ^[0-9]+$ ]] && [[ -f "${ROOT}/.env" ]]; then
   _line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${ROOT}/.env" 2>/dev/null | tail -1)
   if [[ -n "${_line}" ]]; then
     PORT="${_line#*=}"
@@ -1156,12 +1000,15 @@ EOS
   local stopper="${INSTALL_PREFIX}/stop-server.sh"
   cat >"${stopper}" <<'EOS'
 #!/usr/bin/env bash
-# Stop the API: kill whatever is listening on PORT from .env (default 3001). Removes server.pid if present.
+# Stop the API: kill listener on listenPort (.app-runtime-config.json), else PORT in .env, else 3001.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG="${ROOT}/server.log"
-PORT=3001
-if [[ -f "${ROOT}/.env" ]]; then
+PORT=""
+if [[ -f "${ROOT}/.app-runtime-config.json" ]] && command -v jq >/dev/null 2>&1; then
+  PORT="$(jq -r '(.listenPort // "")|tostring' "${ROOT}/.app-runtime-config.json" 2>/dev/null | tr -d '[:space:]')"
+fi
+if [[ -z "${PORT}" || ! "${PORT}" =~ ^[0-9]+$ ]] && [[ -f "${ROOT}/.env" ]]; then
   _line=$(command grep -E '^[[:space:]]*PORT[[:space:]]*=' "${ROOT}/.env" 2>/dev/null | tail -1)
   if [[ -n "${_line}" ]]; then
     PORT="${_line#*=}"
@@ -1269,7 +1116,7 @@ EOS
   fi
   say_dim "Optional PATH: export PATH=\"${INSTALL_PREFIX}/bin:\${PATH}\""
   say ""
-  say_dim "Tweak ${INSTALL_PREFIX}/.app-runtime-config.json in Chrome Server config for keys, liveRealtimeProvider, models, whisperModel, … (HOST/PORT/DATABASE_URL stay in .env). localWhisperExecutable is set to bin/whisper from this install."
+  say_dim "Tweak ${INSTALL_PREFIX}/.app-runtime-config.json in Chrome Server config for keys, models, listenHost, listenPort, databaseUrl, … .env is optional (shell exports or legacy PORT only). localWhisperExecutable is set to bin/whisper from this install."
   if [[ "${EXT_INSTALLED}" == true ]] && [[ -f "${EXT_DIR}/manifest.json" ]]; then
     say ""
     say "${C_ACCENT}Chrome:${C_RST} Extensions → Developer mode → Load unpacked → ${C_BOLD}${EXT_DIR}${C_RST}"

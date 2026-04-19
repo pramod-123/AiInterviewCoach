@@ -12,7 +12,7 @@ import {
   sendWebmBufferWithRange,
   sendWebmFileWithRange,
 } from "../live-session/serveWebmRange.js";
-import type { LiveSessionPostProcessor } from "../services/LiveSessionPostProcessor.js";
+import type { LiveSessionPostProcessScheduler } from "../services/liveSessionPostProcessScheduler.js";
 import { notifyPostProcessEvent } from "../live-session/postProcessEventsHub.js";
 import { createLiveRealtimeBridgeHandler } from "../live-session/realtime/createLiveRealtimeBridgeHandler.js";
 
@@ -51,7 +51,7 @@ export class LiveSessionRoutesController {
     private readonly runInTransaction: AppTransactionRunner,
     private readonly paths: AppPaths,
     private readonly files: IAppFileStore,
-    private readonly liveSessionPostProcessor: LiveSessionPostProcessor,
+    private readonly liveSessionPostProcessor: LiveSessionPostProcessScheduler,
   ) {}
 
   register(app: FastifyInstance): void {

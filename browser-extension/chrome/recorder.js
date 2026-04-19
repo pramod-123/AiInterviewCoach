@@ -1220,6 +1220,7 @@ function mountSpServerConfigOnce() {
       apiBase = normalized;
     },
     persistApiBase: (normalized) => chrome.storage.local.set({ apiBase: normalized }),
+    onAfterSuccessfulSave: () => refreshSidepanelAfterRuntimeConfigSave(),
   });
 }
 
@@ -1285,6 +1286,88 @@ function applyVoiceAiSessionPolicy() {
   }
 }
 
+/**
+ * Re-fetch server interview readiness after Server config Save (storage bump) without reloading the panel.
+ */
+async function refreshSidepanelAfterRuntimeConfigSave() {
+  if (!sessionId || !apiBase || !tabIdValid()) {
+    return;
+  }
+  const recording = tabRecorder != null && tabRecorder.state !== "inactive";
+  await syncSessionLiveInterviewerFromServer();
+  applyVoiceAiSessionPolicy();
+
+  let serverInterviewPipelineEnabled = true;
+  if (typeof window.ICFetchInterviewApiEnabled === "function") {
+    serverInterviewPipelineEnabled = await window.ICFetchInterviewApiEnabled(apiBase);
+  }
+  const ban = document.getElementById("spInterviewApiBanner");
+  const banText = document.getElementById("spInterviewApiBannerText");
+  if (!serverInterviewPipelineEnabled) {
+    ban?.classList.remove("hidden");
+    if (banText) {
+      banText.textContent =
+        "This server cannot build the interview pipeline yet (keys, Whisper, or models). Open Server settings (gear), add what is missing, Save, then reopen this panel from the popup — no server restart needed for saved config.";
+    }
+    btnStart.disabled = true;
+    if (chkMic) {
+      chkMic.disabled = true;
+    }
+    if (chkVoiceAi) {
+      chkVoiceAi.disabled = true;
+    }
+  } else {
+    ban?.classList.add("hidden");
+    if (!recording) {
+      btnStart.disabled = false;
+      if (chkMic) {
+        chkMic.disabled = false;
+      }
+    }
+    applyVoiceAiSessionPolicy();
+    await applyLiveRealtimeServerKeyGate();
+    const { preferVoiceAi } = await chrome.storage.local.get(["preferVoiceAi"]);
+    if (
+      sessionAllowsLiveInterviewer &&
+      chkVoiceAi &&
+      typeof preferVoiceAi === "boolean" &&
+      !chkVoiceAi.disabled
+    ) {
+      chkVoiceAi.checked = preferVoiceAi;
+    }
+  }
+
+  if (metaEl) {
+    metaEl.textContent = serverInterviewPipelineEnabled
+      ? `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`
+      : `Session ${sessionId} · Server needs configuration · ${apiBase}`;
+  }
+  syncCaptureUi();
+}
+
+async function applyLiveRealtimeServerKeyGate() {
+  if (!chkVoiceAi || !sessionAllowsLiveInterviewer) {
+    return;
+  }
+  if (typeof window.ICFetchPublicAppConfig !== "function" || typeof window.ICLiveRealtimeFromPublicConfig !== "function") {
+    return;
+  }
+  const cfg = await window.ICFetchPublicAppConfig(apiBase);
+  const lr = window.ICLiveRealtimeFromPublicConfig(cfg);
+  if (lr.selectedProviderHasKey) {
+    return;
+  }
+  chkVoiceAi.checked = false;
+  chkVoiceAi.disabled = true;
+  chkVoiceAi.setAttribute(
+    "title",
+    lr.anyRealtimeKey
+      ? `Live realtime is set to "${lr.liveRealtimeProvider || "none"}" but that vendor has no API key. Change provider or add a key in Server config.`
+      : "Add an OpenAI or Gemini API key in Server config to use live voice.",
+  );
+  syncVoiceAiStatus("disabled_setting");
+}
+
 async function init() {
   await resolveSessionConfig();
   await hydrateApiBaseFromStorageIfEmpty();
@@ -1319,12 +1402,42 @@ async function init() {
 
   await syncSessionLiveInterviewerFromServer();
   applyVoiceAiSessionPolicy();
-  if (sessionAllowsLiveInterviewer && chkVoiceAi && typeof preferVoiceAi === "boolean") {
-    chkVoiceAi.checked = preferVoiceAi;
+
+  let serverInterviewPipelineEnabled = true;
+  if (typeof window.ICFetchInterviewApiEnabled === "function") {
+    serverInterviewPipelineEnabled = await window.ICFetchInterviewApiEnabled(apiBase);
+  }
+  if (!serverInterviewPipelineEnabled) {
+    const ban = document.getElementById("spInterviewApiBanner");
+    const banText = document.getElementById("spInterviewApiBannerText");
+    ban?.classList.remove("hidden");
+    if (banText) {
+      banText.textContent =
+        "This server cannot build the interview pipeline yet (keys, Whisper, or models). Open Server settings (gear), add what is missing, Save, then reopen this panel from the popup — no server restart needed for saved config.";
+    }
+    btnStart.disabled = true;
+    if (chkMic) {
+      chkMic.disabled = true;
+    }
+    if (chkVoiceAi) {
+      chkVoiceAi.disabled = true;
+    }
+  } else {
+    await applyLiveRealtimeServerKeyGate();
+    if (
+      sessionAllowsLiveInterviewer &&
+      chkVoiceAi &&
+      typeof preferVoiceAi === "boolean" &&
+      !chkVoiceAi.disabled
+    ) {
+      chkVoiceAi.checked = preferVoiceAi;
+    }
   }
 
   if (metaEl) {
-    metaEl.textContent = `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`;
+    metaEl.textContent = serverInterviewPipelineEnabled
+      ? `Session ${sessionId} · LeetCode tab #${leetcodeTabId} · ${apiBase}`
+      : `Session ${sessionId} · Server needs configuration · ${apiBase}`;
   }
 
   mountSpServerConfigOnce();
@@ -1337,7 +1450,7 @@ async function init() {
   }
   if (chkVoiceAi) {
     chkVoiceAi.addEventListener("change", () => {
-      if (!sessionAllowsLiveInterviewer) {
+      if (!sessionAllowsLiveInterviewer || chkVoiceAi.disabled) {
         return;
       }
       void chrome.storage.local.set({ preferVoiceAi: chkVoiceAi.checked });
@@ -1604,5 +1717,18 @@ window.addEventListener("storage", (e) => {
   }
 });
 syncSidepanelThemeToggleUi();
+
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.icRuntimeConfigSavedAt) {
+      return;
+    }
+    void refreshSidepanelAfterRuntimeConfigSave();
+  });
+}
+
+document.addEventListener("ic-server-config-saved", () => {
+  void refreshSidepanelAfterRuntimeConfigSave();
+});
 
 void init();

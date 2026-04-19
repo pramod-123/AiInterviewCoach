@@ -46,11 +46,12 @@ log.info({ sessionId, removedJobCount, sessionStatus: session.status }, "Reset l
 
 const evaluationFactory = new InterviewEvaluationServiceFactory(() => getMergedAppEnv(paths), appDao);
 const sttFactory = new SpeechToTextServiceFactory(() => getMergedAppEnv(paths), () => paths);
-const speechAnalysis = new SpeechTranscriptionEvaluationOrchestratorFactory(
+const orchestratorFactory = new SpeechTranscriptionEvaluationOrchestratorFactory(
   sttFactory,
   evaluationFactory,
   log,
-).create();
+);
+const speechAnalysis = orchestratorFactory.create();
 assertMandatoryInterviewApiConfig(speechAnalysis);
 
 const processor = new LiveSessionPostProcessor(
@@ -58,7 +59,7 @@ const processor = new LiveSessionPostProcessor(
   runAppTransaction,
   paths,
   appFileStore,
-  speechAnalysis,
+  orchestratorFactory,
   log,
 );
 await processor.run(sessionId, { allowWhileActive: true });
