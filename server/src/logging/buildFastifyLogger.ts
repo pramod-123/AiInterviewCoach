@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
+import fs from "node:fs";
 import path from "node:path";
 import DailyRotateFile from "winston-daily-rotate-file";
 import winston from "winston";
@@ -13,6 +14,15 @@ const LEVELS = new Set(["fatal", "error", "warn", "info", "debug", "trace", "sil
 function envFlagTrue(key: string): boolean {
   const v = process.env[key]?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
+}
+
+/** File logging is on by default; set `LOG_FILE_ENABLED=0` (or false/no/off) to disable. */
+function envFileLoggingEnabled(): boolean {
+  const v = process.env.LOG_FILE_ENABLED?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no" || v === "off") {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -37,7 +47,7 @@ export function resolveEffectiveLogLevel(): string {
  * |----------|--------|
  * | `LOG_LEVEL` | `fatal` … `trace` / `silent` (default `info` if nothing else applies) |
  * | `LOG_DEBUG=1` | Same as `LOG_LEVEL=debug` when `LOG_LEVEL` is unset or invalid |
- * | `LOG_FILE_ENABLED=1` | Also write to `LOG_DIR/server-*.log` (hourly `%DATE%`) |
+ * | `LOG_FILE_ENABLED` | `0` / `false` / `no` / `off` disables file logs; otherwise hourly files under `LOG_DIR` |
  * | `LOG_DIR` | Directory under `process.cwd()` (default `logs`) |
  */
 export function buildFastifyLogger(): FastifyBaseLogger {
@@ -50,8 +60,9 @@ export function buildFastifyLogger(): FastifyBaseLogger {
     }),
   ];
 
-  if (envFlagTrue("LOG_FILE_ENABLED")) {
+  if (envFileLoggingEnabled()) {
     const logDir = path.join(process.cwd(), process.env.LOG_DIR?.trim() || "logs");
+    fs.mkdirSync(logDir, { recursive: true });
     transports.push(
       new DailyRotateFile({
         dirname: logDir,
