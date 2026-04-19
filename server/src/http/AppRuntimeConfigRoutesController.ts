@@ -31,6 +31,17 @@ const LOCAL_WHISPER_EXE_MAX_LEN = 4096;
 const DATABASE_URL_MAX_LEN = 2048;
 const LISTEN_HOST_MAX_LEN = 255;
 
+/** Hostnames must be single-line ASCII without spaces or C0 control bytes. */
+function listenHostHasInvalidChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c <= 0x20) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class AppRuntimeConfigRoutesController {
   constructor(
     private readonly paths: AppPaths,
@@ -148,7 +159,7 @@ function validateAppConfigPatch(paths: AppPaths, raw: Record<string, unknown>): 
     if (t.length > LISTEN_HOST_MAX_LEN) {
       return "listenHost is too long.";
     }
-    if (/[\s\u0000-\u001f]/.test(t)) {
+    if (listenHostHasInvalidChar(t)) {
       return "listenHost must not contain whitespace or control characters.";
     }
   }
