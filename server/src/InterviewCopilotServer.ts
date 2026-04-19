@@ -10,7 +10,10 @@ import { JobRoutesController } from "./http/JobRoutesController.js";
 import { LiveSessionRoutesController } from "./http/LiveSessionRoutesController.js";
 import { getMergedAppEnv } from "./infrastructure/appRuntimeConfig.js";
 import { AppPaths } from "./infrastructure/AppPaths.js";
-import { assertMandatoryInterviewApiConfig } from "./services/mandatoryInterviewApiEnv.js";
+import {
+  assertMandatoryFfmpegBinaries,
+  assertMandatoryInterviewApiConfig,
+} from "./services/mandatoryInterviewApiEnv.js";
 import { InterviewEvaluationServiceFactory } from "./services/evaluation/InterviewEvaluationServiceFactory.js";
 import { SpeechTranscriptionEvaluationOrchestratorFactory } from "./services/SpeechTranscriptionEvaluationOrchestratorFactory.js";
 import { SpeechToTextServiceFactory } from "./services/speech-to-text/SpeechToTextServiceFactory.js";
@@ -25,6 +28,8 @@ export class InterviewCopilotServer {
   private readonly paths: AppPaths;
   private readonly speechToTextFactory: SpeechToTextServiceFactory;
   private readonly evaluationFactory: InterviewEvaluationServiceFactory;
+  /** When false, live-session + interview HTTP routes are not registered (keys/config incomplete); app-config and jobs still work. */
+  interviewApiEnabled = true;
 
   constructor(
     speechToTextFactory?: SpeechToTextServiceFactory,
@@ -71,28 +76,39 @@ export class InterviewCopilotServer {
   }
 
   registerRoutes(): void {
-    const speechAnalysis = new SpeechTranscriptionEvaluationOrchestratorFactory(
-      this.speechToTextFactory,
-      this.evaluationFactory,
-      this.app.log,
-    ).create();
-    assertMandatoryInterviewApiConfig(speechAnalysis);
-    const liveSessionPostProcessor = new LiveSessionPostProcessor(
-      appDao,
-      runAppTransaction,
-      this.paths,
-      appFileStore,
-      speechAnalysis,
-      this.app.log,
-    );
-    const liveSessionRoutes = new LiveSessionRoutesController(
-      appDao,
-      runAppTransaction,
-      this.paths,
-      appFileStore,
-      liveSessionPostProcessor,
-    );
-    liveSessionRoutes.register(this.app);
+    assertMandatoryFfmpegBinaries();
+    try {
+      const speechAnalysis = new SpeechTranscriptionEvaluationOrchestratorFactory(
+        this.speechToTextFactory,
+        this.evaluationFactory,
+        this.app.log,
+      ).create();
+      assertMandatoryInterviewApiConfig(speechAnalysis);
+      const liveSessionPostProcessor = new LiveSessionPostProcessor(
+        appDao,
+        runAppTransaction,
+        this.paths,
+        appFileStore,
+        speechAnalysis,
+        this.app.log,
+      );
+      const liveSessionRoutes = new LiveSessionRoutesController(
+        appDao,
+        runAppTransaction,
+        this.paths,
+        appFileStore,
+        liveSessionPostProcessor,
+      );
+      liveSessionRoutes.register(this.app);
+    } catch (err) {
+      this.interviewApiEnabled = false;
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.app.log.warn(
+        { errMessage: message, errStack: stack },
+        "Interview + live-session HTTP API disabled (missing API keys, models, Whisper, or evaluation config). Fix Server config and restart to enable.",
+      );
+    }
     new LiveSessionPostProcessWebSocketPlugin(appDao).register(this.app);
     new AppRuntimeConfigRoutesController(this.paths).register(this.app);
 
@@ -111,6 +127,7 @@ export class InterviewCopilotServer {
         port,
         node: process.version,
         startedAt: startedAt.toISOString(),
+        interviewApiEnabled: this.interviewApiEnabled,
       },
       `Server listening on ${url} (started at ${startedAt.toISOString()})`,
     );

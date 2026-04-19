@@ -12,6 +12,21 @@ export const WINSTON_FASTIFY_LEVELS = {
   trace: 5,
 } as const;
 
+/** `Error` properties are non-enumerable; spreading drops them and logs show `"err": {}`. */
+function cloneBindingsWithErrorsSerialized(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v instanceof Error) {
+      out[k] = { name: v.name, message: v.message, stack: v.stack };
+    } else if (v && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype) {
+      out[k] = cloneBindingsWithErrorsSerialized(v as Record<string, unknown>);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 function redactFastifyLogObject(obj: Record<string, unknown>): Record<string, unknown> {
   const out = { ...obj };
   const req = out.req;
@@ -50,15 +65,14 @@ function normalizePinoStyleArgs(args: unknown[]): { message: string; meta: Recor
     return { message: a.replace(/\\n/g, "\n"), meta: {} };
   }
   if (a && typeof a === "object" && typeof b === "string") {
-    const meta = unescapeNewlines(redactFastifyLogObject({ ...(a as Record<string, unknown>) })) as Record<
-      string,
-      unknown
-    >;
+    const meta = unescapeNewlines(
+      redactFastifyLogObject(cloneBindingsWithErrorsSerialized({ ...(a as Record<string, unknown>) })),
+    ) as Record<string, unknown>;
     return { message: b.replace(/\\n/g, "\n"), meta };
   }
   if (a && typeof a === "object") {
     const o = unescapeNewlines(
-      redactFastifyLogObject({ ...(a as Record<string, unknown>) }),
+      redactFastifyLogObject(cloneBindingsWithErrorsSerialized({ ...(a as Record<string, unknown>) })),
     ) as Record<string, unknown>;
     const msg =
       typeof o.msg === "string"

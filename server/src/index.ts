@@ -56,6 +56,11 @@ try {
   server.registerRoutes();
   await server.listen(port, host);
 } catch (err) {
-  server.instance.log.error({ err }, "Failed to start server");
+  const e = err instanceof Error ? err : new Error(String(err));
+  server.instance.log.error(
+    { errName: e.name, errMessage: e.message, errStack: e.stack },
+    "Failed to start server",
+  );
+  console.error(e);
   process.exit(1);
 }

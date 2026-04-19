@@ -737,7 +737,8 @@ apply_shipped_runtime_model_defaults() {
 }
 
 # Merge non-empty fields into .app-runtime-config.json (camelCase keys). Uses jq (required by this installer).
-# Args: install_root openai anthropic gemini gemini_live_model llm local_whisper_exe set_eval_default(0|1) live_realtime_provider
+# Args: install_root openai anthropic gemini gemini_live_model llm local_whisper_exe set_eval_default(0|1) live_realtime_provider patch_providers(0|1)
+# When patch_providers=1, empty llm/live args remove llmProvider / liveRealtimeProvider (installer keys pass). When 0, empty args leave those keys unchanged (e.g. whisper-only merge).
 merge_app_runtime_config_snippet() {
   local root="$1"
   local cfg="${root}/.app-runtime-config.json"
@@ -751,6 +752,8 @@ merge_app_runtime_config_snippet() {
   local setdef_json="false"
   [[ "${8:-0}" == "1" ]] && setdef_json="true"
   live_rt="$(trim_crlf "${9:-}" | tr '[:upper:]' '[:lower:]')"
+  local patch_pv_json="false"
+  [[ "${10:-0}" == "1" ]] && patch_pv_json="true"
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/aic-rt-merge.XXXXXX")"
   if ! { [[ -f "$cfg" ]] && [[ -s "$cfg" ]] && cat "$cfg" || printf '%s\n' '{"version":1}'; } | jq -s \
@@ -762,6 +765,7 @@ merge_app_runtime_config_snippet() {
     --arg w "$whisper_sh" \
     --arg lr "$live_rt" \
     --argjson setdef "${setdef_json}" \
+    --argjson patchPv "${patch_pv_json}" \
     '
     .[0] as $raw
     | ($raw | if type == "object" and .version == 1 then . else {"version":1} end) as $base
@@ -770,9 +774,17 @@ merge_app_runtime_config_snippet() {
     | (if ($a | length) > 0 then .anthropicApiKey = $a else . end)
     | (if ($g | length) > 0 then .geminiApiKey = $g else . end)
     | (if ($gl | length) > 0 then .geminiLiveModel = $gl else . end)
-    | (if ($l | length) > 0 then .llmProvider = $l else . end)
+    | if $patchPv then
+        (if ($l | length) > 0 and ($l == "openai" or $l == "anthropic" or $l == "gemini") then .llmProvider = $l else del(.llmProvider) end)
+      else
+        (if ($l | length) > 0 and ($l == "openai" or $l == "anthropic" or $l == "gemini") then .llmProvider = $l else . end)
+      end
     | (if ($w | length) > 0 then .localWhisperExecutable = $w else . end)
-    | (if ($lr == "openai" or $lr == "gemini") then .liveRealtimeProvider = $lr else . end)
+    | if $patchPv then
+        (if ($lr | length) > 0 and ($lr == "openai" or $lr == "gemini") then .liveRealtimeProvider = $lr else del(.liveRealtimeProvider) end)
+      else
+        (if ($lr | length) > 0 and ($lr == "openai" or $lr == "gemini") then .liveRealtimeProvider = $lr else . end)
+      end
     | .version = 1
     | if $setdef and ((.evaluationProvider // "") | length == 0) then .evaluationProvider = "single-agent" else . end
     ' >"$tmp"; then
@@ -944,33 +956,42 @@ main() {
 
   banner "API keys (optional)"
   local openai_key="" anthropic_key="" gemini_key="" gemini_model=""
-  local live_rt="openai" llm_choice="openai"
+  local llm_choice="openai"
+  local live_rt_for_merge=""
+  local llm_for_merge=""
+  local rt_key_present=0
 
   if [[ "${AUTO_YES}" == "1" ]]; then
     say_dim "INSTALL_CONSUMER_YES=1: optional keys from env → .app-runtime-config.json; models use shipped defaults."
     say_dim "Env: LIVE_REALTIME_PROVIDER (openai|gemini), OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, LLM_PROVIDER (openai|gemini|anthropic)."
-    live_rt="$(trim_crlf "${LIVE_REALTIME_PROVIDER:-openai}")"
-    live_rt="$(printf '%s' "$live_rt" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-    [[ "$live_rt" == "openai" || "$live_rt" == "gemini" ]] || live_rt="openai"
+    say_dim "A realtime or LLM provider is written only when its API key is set (skipped keys → omit provider until Server config)."
+    local live_rt_raw
+    live_rt_raw="$(trim_crlf "${LIVE_REALTIME_PROVIDER:-}")"
+    live_rt_raw="$(printf '%s' "$live_rt_raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
     openai_key="$(trim_crlf "${OPENAI_API_KEY:-}")"
     gemini_key="$(trim_crlf "${GEMINI_API_KEY:-}")"
     anthropic_key="$(trim_crlf "${ANTHROPIC_API_KEY:-}")"
     llm_choice="$(trim_crlf "${LLM_PROVIDER:-openai}")"
+    if [[ "$live_rt_raw" == "openai" && -n "$openai_key" ]]; then
+      live_rt_for_merge="openai"
+    elif [[ "$live_rt_raw" == "gemini" && -n "$gemini_key" ]]; then
+      live_rt_for_merge="gemini"
+    fi
   else
     if [[ -r /dev/tty && -w /dev/tty ]]; then
       say "${C_ACCENT}Realtime / Live bridge provider:${C_RST} ${C_DIM}↑/↓ or ${C_BOLD}1${C_RST}/${C_BOLD}2${C_RST}, Enter.${C_RST}"
       choose_rt_index=0
       choose_realtime_provider_menu || true
     else
-      say_warn "No TTY for menu; defaulting realtime provider to OpenAI (set LIVE_REALTIME_PROVIDER=gemini to force Gemini)."
+      say_warn "No TTY for menu; skipping realtime provider in config (set keys in Server config later)."
       choose_rt_index=0
     fi
     if [[ "${choose_rt_index}" -eq 1 ]]; then
-      live_rt="gemini"
       gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
+      [[ -n "$gemini_key" ]] && rt_key_present=1
     else
-      live_rt="openai"
       openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime / voice bridge (optional — Enter to skip)")")"
+      [[ -n "$openai_key" ]] && rt_key_present=1
     fi
 
     if [[ -r /dev/tty && -w /dev/tty ]]; then
@@ -979,7 +1000,7 @@ main() {
       choose_eval_index=0
       choose_eval_llm_menu || true
     else
-      say_warn "No TTY for menu; defaulting evaluation LLM to OpenAI (set LLM_PROVIDER=gemini|anthropic)."
+      say_warn "No TTY for menu; defaulting evaluation LLM choice to OpenAI (set LLM_PROVIDER=gemini|anthropic)."
       choose_eval_index=0
     fi
     if [[ "${choose_eval_index}" -eq 1 ]]; then
@@ -990,9 +1011,9 @@ main() {
     elif [[ "${choose_eval_index}" -eq 2 ]]; then
       llm_choice="anthropic"
       anthropic_key="$(trim_crlf "$(read_secret_prompt "Anthropic API key for evaluation (optional — Enter to skip)")")"
-      if [[ "$live_rt" == "openai" && -z "$openai_key" ]]; then
+      if [[ "${choose_rt_index}" -eq 0 && -z "$openai_key" ]]; then
         openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for realtime voice (optional — Enter to skip)")")"
-      elif [[ "$live_rt" == "gemini" && -z "$gemini_key" ]]; then
+      elif [[ "${choose_rt_index}" -eq 1 && -z "$gemini_key" ]]; then
         gemini_key="$(trim_crlf "$(read_secret_prompt "Gemini API key for Live realtime (optional — Enter to skip)")")"
       fi
     else
@@ -1001,6 +1022,12 @@ main() {
         openai_key="$(trim_crlf "$(read_secret_prompt "OpenAI API key for evaluation (optional — Enter to skip)")")"
       fi
     fi
+
+    if [[ "${choose_rt_index}" -eq 0 && "${rt_key_present}" -eq 1 ]]; then
+      live_rt_for_merge="openai"
+    elif [[ "${choose_rt_index}" -eq 1 && "${rt_key_present}" -eq 1 ]]; then
+      live_rt_for_merge="gemini"
+    fi
   fi
 
   llm_choice="$(printf '%s' "$llm_choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
@@ -1008,8 +1035,11 @@ main() {
     say_warn "Unrecognized LLM_PROVIDER='${llm_choice}' — using openai."
     llm_choice="openai"
   fi
-  live_rt="$(printf '%s' "$live_rt" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-  [[ "$live_rt" == "openai" || "$live_rt" == "gemini" ]] || live_rt="openai"
+  case "$llm_choice" in
+    openai) [[ -n "$openai_key" ]] && llm_for_merge="openai" ;;
+    anthropic) [[ -n "$anthropic_key" ]] && llm_for_merge="anthropic" ;;
+    gemini) [[ -n "$gemini_key" ]] && llm_for_merge="gemini" ;;
+  esac
 
   gemini_model=""
   merge_app_runtime_config_snippet "${INSTALL_PREFIX}" \
@@ -1017,10 +1047,11 @@ main() {
     "${anthropic_key}" \
     "${gemini_key}" \
     "${gemini_model}" \
-    "${llm_choice}" \
+    "${llm_for_merge}" \
     "" \
     "1" \
-    "${live_rt}"
+    "${live_rt_for_merge}" \
+    "1"
 
   say_dim "Default models come from .app-runtime-config.defaults.json; change keys and models anytime in Chrome → Server config."
   tick_done "Runtime config saved (keys optional, default models)"
@@ -1050,7 +1081,7 @@ main() {
 exec "${venv_whisper}/bin/whisper" "\$@"
 EOF
   chmod +x "${whisper_sh}"
-  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" "" "" "" "" "" "${whisper_sh}" "0" ""
+  merge_app_runtime_config_snippet "${INSTALL_PREFIX}" "" "" "" "" "" "${whisper_sh}" "0" "" "0"
   tick_done "openai-whisper CLI ready (${whisper_sh})"
   bump_install_progress "openai-whisper"
 
