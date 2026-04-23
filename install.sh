@@ -452,8 +452,19 @@ upgrade_node_on_host() {
   fi
   case "$(linux_pkg_family)" in
     apt)
-      say_dim "Ensuring NodeSource nodejs package is installed/upgraded…"
-      sudo apt-get install -y nodejs
+      say_dim "Re-running NodeSource 22.x setup and upgrading nodejs (apt)…"
+      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+      sudo apt-get update -qq
+      sudo apt-get install -y nodejs || return 1
+      hash -r 2>/dev/null || true
+      if command -v node >/dev/null 2>&1 && ! node_is_ok; then
+        say_warn "Node is still below ${NODE_MIN_MAJOR} ($(node_version_line) at $(command -v node)). Removing distro nodejs and reinstalling from NodeSource…"
+        sudo apt-get remove -y nodejs 2>/dev/null || true
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+        sudo apt-get update -qq
+        sudo apt-get install -y nodejs || return 1
+        hash -r 2>/dev/null || true
+      fi
       ;;
     dnf)
       say_dim "Re-running NodeSource 22.x setup and nodejs install…"
@@ -528,9 +539,23 @@ install_deps_windows_gitbash() {
 
 install_deps_linux_apt() {
   say "Configuring Node.js 22.x (NodeSource) and system packages (sudo required)..."
+  # Debian/Ubuntu "nodejs" 18.x often stays on PATH unless removed before NodeSource install.
+  if command -v node >/dev/null 2>&1 && ! node_is_ok; then
+    say_dim "Removing distro nodejs ($(node_version_line)) so NodeSource can install Node 22…"
+    sudo apt-get remove -y nodejs 2>/dev/null || true
+  fi
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  sudo apt-get update -qq
   sudo apt-get install -y nodejs ffmpeg python3 python3-venv python3-pip curl ca-certificates jq unzip build-essential
   hash -r 2>/dev/null || true
+  if command -v node >/dev/null 2>&1 && ! node_is_ok; then
+    say_warn "nodejs from apt is still < ${NODE_MIN_MAJOR}; forcing reinstall from NodeSource…"
+    sudo apt-get remove -y nodejs 2>/dev/null || true
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt-get update -qq
+    sudo apt-get install -y nodejs
+    hash -r 2>/dev/null || true
+  fi
 }
 
 install_deps_linux_dnf() {
@@ -619,7 +644,9 @@ ensure_runtime_after_install() {
   maybe_nvm
   if ! node_is_ok; then
     echo "Node.js ${NODE_MIN_MAJOR}+ is still not available after install (found: $(command -v node 2>/dev/null || echo none) $(node_version_line))." >&2
-    echo "Open a new terminal or run: hash -r  (with nvm: nvm install ${NODE_MIN_MAJOR} && nvm use ${NODE_MIN_MAJOR})" >&2
+    echo "Open a new terminal or run: hash -r" >&2
+    echo "Debian/Ubuntu: sudo apt-get remove -y nodejs && curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get update && sudo apt-get install -y nodejs" >&2
+    echo "Or with nvm: nvm install ${NODE_MIN_MAJOR} && nvm use ${NODE_MIN_MAJOR}" >&2
     return 1
   fi
   if ! python3_runtime_ok; then

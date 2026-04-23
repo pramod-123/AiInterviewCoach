@@ -64,7 +64,9 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
 
+      # windows-latest defaults to PowerShell; this script uses bash (PRISMA_VER=…).
       - name: Install, generate client, build, prune devDependencies
+        shell: bash
         run: |
           npm ci
           npx prisma generate
