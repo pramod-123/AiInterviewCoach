@@ -227,7 +227,7 @@
 
 .ic-srv-voice-models {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 14px 16px;
   align-items: start;
 }
@@ -268,7 +268,7 @@
  * page viewport is wide. Force the same grid as Sessions inside the panel settings shell.
  */
 .ic-srv-settings-shell--panel .ic-srv-voice-models {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px 10px;
 }
 

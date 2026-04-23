@@ -10,7 +10,7 @@ import {
   tryCreateOpenAiClient,
 } from "./openAiClient.js";
 
-const JSON_CHAT_TEMPERATURE = 0.4;
+const JSON_CHAT_TEMPERATURE = 0.2;
 
 export class OpenAiLlmClient implements LlmClient {
   getProviderId(): string {

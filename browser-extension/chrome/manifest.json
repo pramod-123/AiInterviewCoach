@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ai Interview Copilot — Live capture",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Records practice-site tabs (LeetCode, HackerRank, Codeforces, AtCoder, CodeChef, TopCoder) and editor snapshots to your AiInterviewCopilot server.",
   "icons": {
     "16": "icons/icon-16.png",

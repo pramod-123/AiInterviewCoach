@@ -5,7 +5,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import type { SpeechTranscription } from "../../types/speechTranscription.js";
 import type { LlmClient, LlmCompletionResult, LlmJsonChatParams, LlmTokenUsage, LlmVisionJsonChatParams } from "./LlmClient.js";
 
-const JSON_CHAT_TEMPERATURE = 0.4;
+const JSON_CHAT_TEMPERATURE = 0.2;
 
 /**
  * Reject model ids that only exist for Live / native-audio (not `generateContent` / tool-calling).

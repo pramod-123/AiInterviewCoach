@@ -7,10 +7,10 @@ const INTERVIEW_API_OFF_HINT =
   "Live interviews are off on this server until API keys, local Whisper, and evaluation settings are complete. Open Sessions → Server settings (gear), fill in the fields, and Save — the server reloads that file without a restart.";
 
 const LIVE_VOICE_NO_KEYS_HINT =
-  "Add an OpenAI or Gemini API key in Server config (Sessions or side panel → Settings) to use live voice.";
+  "Add a Gemini API key in Server config (Sessions or side panel → Settings) to use live voice (Gemini Live).";
 
 const LIVE_VOICE_WRONG_VENDOR_HINT =
-  "Live realtime is set to a vendor without an API key — pick OpenAI or Gemini in Server config to match your keys.";
+  "Set live realtime to Gemini in Server config and add a Gemini API key, or save if the server was still on OpenAI for live voice.";
 
 /**
  * @param {string} apiBase

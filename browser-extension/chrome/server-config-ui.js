@@ -37,26 +37,15 @@
     "</section>" +
     '<section class="ac-card">' +
     "<h2>Voice bridge (WebSocket)</h2>" +
-    '<p class="ac-hint">Realtime provider lists OpenAI and Gemini; each vendor option stays disabled until that API key exists. When neither key is set, the provider control is disabled too. Model and voice fields unlock per vendor API key. Choices come from <code>.app-runtime-config.json</code> (<code>openaiRealtimeModelOptions</code>, …) or, when an array is omitted, from shipped <code>server/.app-runtime-config.defaults.json</code>. To use another id, add it to the runtime file or edit the defaults file on the server.</p>' +
+    '<p class="ac-hint">Live interview voice uses <strong>Gemini Live</strong> only. Add a Gemini API key, then set model and voice. List values come from <code>.app-runtime-config.json</code> (<code>geminiLiveModelOptions</code>, <code>geminiLiveVoiceOptions</code>) or, when an array is omitted, from <code>server/.app-runtime-config.defaults.json</code>. To use another id, add it in the server runtime file.</p>' +
     "<label>Realtime provider " +
     '<select data-ic="liveRealtimeProvider">' +
     '<option value="">Select…</option>' +
-    '<option value="openai">openai</option>' +
     '<option value="gemini">gemini</option>' +
     "</select></label>" +
     '<div class="ic-srv-voice-models">' +
     '<div class="ic-srv-model-col">' +
-    '<span class="ic-srv-model-col-title">OpenAI</span>' +
-    "<label>Model " +
-    '<select data-ic="openaiRealtimeModel">' +
-    '<option value="">Select…</option>' +
-    "</select></label>" +
-    "<label>Voice " +
-    '<select data-ic="openaiRealtimeVoice">' +
-    '<option value="">Select…</option>' +
-    "</select></label></div>" +
-    '<div class="ic-srv-model-col">' +
-    '<span class="ic-srv-model-col-title">Gemini</span>' +
+    '<span class="ic-srv-model-col-title">Gemini Live</span>' +
     "<label>Model " +
     '<select data-ic="geminiLiveModel">' +
     '<option value="">Select…</option>' +
@@ -243,8 +232,6 @@
     var liveRealtimeProvider = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "liveRealtimeProvider"));
     var geminiLiveModel = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "geminiLiveModel"));
     var geminiLiveVoice = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "geminiLiveVoice"));
-    var openaiRealtimeModel = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "openaiRealtimeModel"));
-    var openaiRealtimeVoice = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "openaiRealtimeVoice"));
     var llmProvider = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "llmProvider"));
     var whisperModel = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "whisperModel"));
     var openaiModelId = /** @type {HTMLSelectElement | null} */ (q(mountPoint, "openaiModelId"));
@@ -343,9 +330,8 @@
       var a = keyAvailAnthropic();
 
       if (liveRealtimeProvider) {
-        setSelectOptionDisabled(liveRealtimeProvider, "openai", !o);
         setSelectOptionDisabled(liveRealtimeProvider, "gemini", !g);
-        liveRealtimeProvider.disabled = !o && !g;
+        liveRealtimeProvider.disabled = !g;
         clampSelectToEnabledOption(liveRealtimeProvider, liveRealtimeProvider.value);
       }
 
@@ -362,12 +348,6 @@
       }
       if (geminiLiveVoice) {
         geminiLiveVoice.disabled = !g;
-      }
-      if (openaiRealtimeModel) {
-        openaiRealtimeModel.disabled = !o;
-      }
-      if (openaiRealtimeVoice) {
-        openaiRealtimeVoice.disabled = !o;
       }
       if (openaiModelId) {
         openaiModelId.disabled = !o;
@@ -426,12 +406,12 @@
         return;
       }
       var c = /** @type {Record<string, unknown>} */ (data);
+      var lrRaw = asString(c.liveRealtimeProvider).trim().toLowerCase();
+      var lrInUi = lrRaw === "openai" ? "gemini" : lrRaw;
       lastLoaded = {
-        liveRealtimeProvider: asString(c.liveRealtimeProvider),
+        liveRealtimeProvider: lrRaw,
         geminiLiveModel: asString(c.geminiLiveModel),
         geminiLiveVoice: asString(c.geminiLiveVoice),
-        openaiRealtimeModel: asString(c.openaiRealtimeModel),
-        openaiRealtimeVoice: asString(c.openaiRealtimeVoice),
         llmProvider: asString(c.llmProvider),
         openaiModelId: asString(c.openaiModelId),
         anthropicModelId: asString(c.anthropicModelId),
@@ -439,8 +419,6 @@
         openaiEvalModelOptions: asStringArray(c.openaiEvalModelOptions),
         anthropicEvalModelOptions: asStringArray(c.anthropicEvalModelOptions),
         geminiEvalModelOptions: asStringArray(c.geminiEvalModelOptions),
-        openaiRealtimeModelOptions: asStringArray(c.openaiRealtimeModelOptions),
-        openaiRealtimeVoiceOptions: asStringArray(c.openaiRealtimeVoiceOptions),
         geminiLiveModelOptions: asStringArray(c.geminiLiveModelOptions),
         geminiLiveVoiceOptions: asStringArray(c.geminiLiveVoiceOptions),
         whisperModelOptions: asStringArray(c.whisperModelOptions),
@@ -486,7 +464,7 @@
       setBadge(anthropicKeyBadge, Boolean(c.anthropicApiKeyConfigured));
 
       if (liveRealtimeProvider) {
-        liveRealtimeProvider.value = lastLoaded.liveRealtimeProvider.trim();
+        liveRealtimeProvider.value = lrInUi;
       }
       if (llmProvider) {
         llmProvider.value = lastLoaded.llmProvider.trim();
@@ -494,8 +472,6 @@
 
       refreshKeyGatedUis();
 
-      fillModelSelect(openaiRealtimeModel, lastLoaded.openaiRealtimeModelOptions, lastLoaded.openaiRealtimeModel);
-      fillModelSelect(openaiRealtimeVoice, lastLoaded.openaiRealtimeVoiceOptions, lastLoaded.openaiRealtimeVoice);
       fillModelSelect(geminiLiveModel, lastLoaded.geminiLiveModelOptions, lastLoaded.geminiLiveModel);
       fillModelSelect(geminiLiveVoice, lastLoaded.geminiLiveVoiceOptions, lastLoaded.geminiLiveVoice);
       fillModelSelect(openaiModelId, lastLoaded.openaiEvalModelOptions, lastLoaded.openaiModelId);
@@ -552,8 +528,6 @@
         liveRealtimeProvider: "",
         geminiLiveModel: "",
         geminiLiveVoice: "",
-        openaiRealtimeModel: "",
-        openaiRealtimeVoice: "",
         llmProvider: "",
         openaiModelId: "",
         anthropicModelId: "",
@@ -587,16 +561,6 @@
         var gv = geminiLiveVoice ? geminiLiveVoice.value.trim() : "";
         if (gv !== baseline.geminiLiveVoice) {
           patch.geminiLiveVoice = gv;
-        }
-
-        var orm = openaiRealtimeModel ? openaiRealtimeModel.value.trim() : "";
-        if (orm !== baseline.openaiRealtimeModel) {
-          patch.openaiRealtimeModel = orm;
-        }
-
-        var orv = openaiRealtimeVoice ? openaiRealtimeVoice.value.trim() : "";
-        if (orv !== baseline.openaiRealtimeVoice) {
-          patch.openaiRealtimeVoice = orv;
         }
 
         if (llmProvider) {

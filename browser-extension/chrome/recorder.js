@@ -1443,8 +1443,8 @@ async function applyLiveRealtimeServerKeyGate() {
   chkVoiceAi.setAttribute(
     "title",
     lr.anyRealtimeKey
-      ? `Live realtime is set to "${lr.liveRealtimeProvider || "none"}" but that vendor has no API key. Change provider or add a key in Server config.`
-      : "Add an OpenAI or Gemini API key in Server config to use live voice.",
+      ? `Live voice needs Gemini: set \"liveRealtimeProvider\" to \"gemini\" in Server config and add a Gemini API key. (Currently: ${lr.liveRealtimeProvider || "none"}.)`
+      : "Add a Gemini API key in Server config to use live voice (Gemini Live).",
   );
   syncVoiceAiStatus("disabled_setting");
 }

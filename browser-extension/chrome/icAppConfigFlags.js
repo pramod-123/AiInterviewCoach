@@ -29,17 +29,16 @@ window.ICLiveRealtimeFromPublicConfig = function ICLiveRealtimeFromPublicConfig(
   if (!cfg || typeof cfg !== "object") {
     return { anyRealtimeKey: false, selectedProviderHasKey: false, liveRealtimeProvider: "" };
   }
-  const o = Boolean(cfg.openaiApiKeyConfigured);
   const g = Boolean(cfg.geminiApiKeyConfigured);
-  const anyRealtimeKey = o || g;
+  const anyRealtimeKey = g;
   const lr = String(cfg.liveRealtimeProvider ?? "")
     .trim()
     .toLowerCase();
   let selectedProviderHasKey = false;
-  if (lr === "openai") {
-    selectedProviderHasKey = o;
-  } else if (lr === "gemini") {
+  if (lr === "gemini") {
     selectedProviderHasKey = g;
+  } else if (lr === "openai") {
+    selectedProviderHasKey = false;
   }
   return { anyRealtimeKey, selectedProviderHasKey, liveRealtimeProvider: lr };
 };
