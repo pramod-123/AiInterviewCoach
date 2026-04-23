@@ -361,18 +361,38 @@ detect_asset_suffix() {
   esac
 }
 
+# Returns: apt | dnf | pacman | empty (unknown).
 linux_pkg_family() {
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    case "${ID:-}" in
-      ubuntu | debian | pop) printf '%s' "apt" ;;
-      fedora | rhel | centos) printf '%s' "dnf" ;;
-      *) printf '%s' "" ;;
-    esac
-  else
+  if [[ ! -f /etc/os-release ]]; then
     printf '%s' ""
+    return
   fi
+  # shellcheck source=/dev/null
+  . /etc/os-release
+  case "${ID:-}" in
+    ubuntu | debian | pop | linuxmint | zorin | elementary | kali | neon | parrot | devuan | raspbian)
+      printf '%s' "apt"
+      ;;
+    fedora | rhel | centos | almalinux | rocky | ol | nobara | ultramarine | mageia | amzn)
+      printf '%s' "dnf"
+      ;;
+    arch | manjaro | endeavouros | garuda | cachyos)
+      printf '%s' "pacman"
+      ;;
+    *)
+      # Derivatives often only set ID_LIKE (e.g. Mint: ID=linuxmint ID_LIKE=ubuntu).
+      local like=" ${ID_LIKE:-} "
+      if [[ "$like" == *" debian "* ]] || [[ "$like" == *" ubuntu "* ]]; then
+        printf '%s' "apt"
+      elif [[ "$like" == *" rhel "* ]] || [[ "$like" == *" fedora "* ]] || [[ "$like" == *" centos "* ]]; then
+        printf '%s' "dnf"
+      elif [[ "$like" == *" arch "* ]]; then
+        printf '%s' "pacman"
+      else
+        printf '%s' ""
+      fi
+      ;;
+  esac
 }
 
 # ---------------------------------------------------------------------------
@@ -423,6 +443,10 @@ upgrade_node_on_host() {
       curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -
       sudo dnf install -y nodejs npm
       ;;
+    pacman)
+      say_dim "Upgrading nodejs (pacman)…"
+      sudo pacman -Sy --needed --noconfirm nodejs npm
+      ;;
     *) return 1 ;;
   esac
   return 0
@@ -449,6 +473,10 @@ upgrade_python_on_host() {
     dnf)
       say_dim "Installing python3 and pip (dnf)…"
       sudo dnf install -y python3 python3-pip
+      ;;
+    pacman)
+      say_dim "Installing python and pip (pacman)…"
+      sudo pacman -Sy --needed --noconfirm python python-pip
       ;;
     *) return 1 ;;
   esac
@@ -481,6 +509,12 @@ install_deps_linux_dnf() {
   hash -r 2>/dev/null || true
 }
 
+install_deps_linux_pacman() {
+  say "Installing packages with pacman (sudo required). Node should be ${NODE_MIN_MAJOR}+ on rolling repos."
+  sudo pacman -Sy --needed --noconfirm nodejs npm ffmpeg python python-pip jq unzip curl tar
+  hash -r 2>/dev/null || true
+}
+
 # Install everything we can via the OS package manager; then verify.
 install_all_system_dependencies() {
   local os
@@ -496,10 +530,18 @@ install_all_system_dependencies() {
   case "$(linux_pkg_family)" in
     apt) install_deps_linux_apt ;;
     dnf) install_deps_linux_dnf ;;
+    pacman) install_deps_linux_pacman ;;
     *)
       say "Unsupported Linux distribution for automatic install."
+      if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        . /etc/os-release
+        say_dim "Detected: ID=${ID:-unknown} VERSION_ID=${VERSION_ID:-} ID_LIKE=${ID_LIKE:-}"
+      fi
       say "Install manually: Node.js ${NODE_MIN_MAJOR}+, ffmpeg, ffprobe, Python 3 (+ venv/pip on Debian), jq, unzip, curl, tar."
-      say "Debian/Ubuntu example: use https://github.com/nodesource/distributions then apt install ffmpeg python3 python3-venv python3-pip jq unzip build-essential"
+      say "Debian/Ubuntu and derivatives: https://github.com/nodesource/distributions then apt install ffmpeg python3 python3-venv python3-pip jq unzip build-essential"
+      say "Fedora/RHEL family: dnf install nodejs npm ffmpeg python3 python3-pip jq unzip gcc gcc-c++ make (or NodeSource RPM setup_22.x)."
+      say "Arch: pacman -S nodejs npm ffmpeg python jq unzip curl tar"
       return 1
       ;;
   esac
