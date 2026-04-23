@@ -255,27 +255,20 @@ Merge-RuntimeSnippet -Root $INSTALL_PREFIX -Openai '' -Anthropic '' -Gemini '' -
 Write-Warn 'If models are empty, set them in Chrome → Server config (defaults merge is Linux/macOS installer only).'
 
 $extDir = Join-Path $INSTALL_PREFIX 'chrome-extension'
-$dlExt = $AUTO_YES
-if (-not $AUTO_YES) {
-  $e = Read-Host 'Download Chrome extension zip from this release? [Y/n]'
-  $dlExt = $e -notmatch '^[nN]'
-}
-if ($dlExt) {
-  $extUrl = Get-AssetUrl $release $EXTENSION_ASSET_NAME
-  if ($extUrl) {
-    $tmpZ = "$([System.IO.Path]::GetTempFileName()).zip"
-    try {
-      Invoke-WebRequest -Uri $extUrl -OutFile $tmpZ -UseBasicParsing
-      if (Test-Path $extDir) { Remove-Item -Recurse -Force $extDir }
-      New-Item -ItemType Directory -Path $extDir | Out-Null
-      Expand-Archive -Path $tmpZ -DestinationPath $extDir -Force
-    } finally {
-      Remove-Item $tmpZ -Force -ErrorAction SilentlyContinue
-    }
-    Write-Ok "Chrome extension → $extDir"
-  } else {
-    Write-Warn "No $EXTENSION_ASSET_NAME in this release."
+$extUrl = Get-AssetUrl $release $EXTENSION_ASSET_NAME
+if ($extUrl) {
+  $tmpZ = "$([System.IO.Path]::GetTempFileName()).zip"
+  try {
+    Invoke-WebRequest -Uri $extUrl -OutFile $tmpZ -UseBasicParsing
+    if (Test-Path $extDir) { Remove-Item -Recurse -Force $extDir }
+    New-Item -ItemType Directory -Path $extDir | Out-Null
+    Expand-Archive -Path $tmpZ -DestinationPath $extDir -Force
+  } finally {
+    Remove-Item $tmpZ -Force -ErrorAction SilentlyContinue
   }
+  Write-Ok "Chrome extension → $extDir"
+} else {
+  Write-Warn "No $EXTENSION_ASSET_NAME in this release."
 }
 
 $startCmd = Join-Path $INSTALL_PREFIX 'start-server.cmd'
@@ -331,7 +324,19 @@ if (Test-Path (Join-Path $extDir 'manifest.json')) {
   Write-Info "Chrome: Load unpacked → $extDir"
 }
 
-if ($AUTO_YES -and $env:INSTALL_CONSUMER_START_SERVER -eq '1') {
-  Set-Location $INSTALL_PREFIX
-  & node dist\index.js
+$runServerNow = $false
+if ($AUTO_YES) {
+  if ($env:INSTALL_CONSUMER_START_SERVER -eq '1') {
+    Write-Info "Start API server in background now? — yes (INSTALL_CONSUMER_START_SERVER=1)"
+    $runServerNow = $true
+  } else {
+    Write-Info "Start API server in background now? — no (set INSTALL_CONSUMER_START_SERVER=1 with INSTALL_CONSUMER_YES)"
+  }
+} else {
+  $ans = Read-Host 'Start API server in background now? [y/N]'
+  if ($ans -match '^[yY]') { $runServerNow = $true }
+}
+
+if ($runServerNow) {
+  & powershell -ExecutionPolicy Bypass -File $startPs1
 }

@@ -1073,28 +1073,24 @@ EOF
   banner "Chrome extension"
   EXT_DIR="${INSTALL_PREFIX}/chrome-extension"
   EXT_INSTALLED=false
-  if prompt_yn "Download and unpack the Chrome extension from the same release?" "y"; then
-    TMP_EXT="$(mktemp)"
-    set +e
-    EXT_URL="$(github_download_url "${EXTENSION_ASSET_NAME}" "${TMP_JSON}")"
-    ext_ok=$?
-    set -e
-    if [[ "${ext_ok}" -eq 0 && -n "${EXT_URL}" ]]; then
-      say_dim "Downloading Chrome extension zip…"
-      download_asset "${EXT_URL}" "${TMP_EXT}"
-      rm -rf "${EXT_DIR}"
-      mkdir -p "${EXT_DIR}"
-      unzip -q -o "${TMP_EXT}" -d "${EXT_DIR}"
-      tick_done "Chrome extension unpacked → ${EXT_DIR}"
-      EXT_INSTALLED=true
-    else
-      say_warn "No ${EXTENSION_ASSET_NAME} on this release — skip or load unpacked from source."
-      tick_done "Chrome extension skipped (asset missing)"
-    fi
-    rm -f "${TMP_EXT}"
+  TMP_EXT="$(mktemp)"
+  set +e
+  EXT_URL="$(github_download_url "${EXTENSION_ASSET_NAME}" "${TMP_JSON}")"
+  ext_ok=$?
+  set -e
+  if [[ "${ext_ok}" -eq 0 && -n "${EXT_URL}" ]]; then
+    say_dim "Downloading Chrome extension zip…"
+    download_asset "${EXT_URL}" "${TMP_EXT}"
+    rm -rf "${EXT_DIR}"
+    mkdir -p "${EXT_DIR}"
+    unzip -q -o "${TMP_EXT}" -d "${EXT_DIR}"
+    tick_done "Chrome extension unpacked → ${EXT_DIR}"
+    EXT_INSTALLED=true
   else
-    tick_done "Chrome extension download skipped"
+    say_warn "No ${EXTENSION_ASSET_NAME} on this release — skip or load unpacked from source."
+    tick_done "Chrome extension skipped (asset missing)"
   fi
+  rm -f "${TMP_EXT}"
   bump_install_progress "Extension"
 
   local starter="${INSTALL_PREFIX}/start-server.sh"
@@ -1279,12 +1275,12 @@ WST
   RUN_SERVER_AFTER=false
   if [[ "${AUTO_YES}" == "1" ]]; then
     if [[ "${INSTALL_CONSUMER_START_SERVER:-}" == "1" ]]; then
-      say_dim "→ Start the API server now? — yes (INSTALL_CONSUMER_START_SERVER=1)"
+      say_dim "→ Start the API server in background now? — yes (INSTALL_CONSUMER_START_SERVER=1)"
       RUN_SERVER_AFTER=true
     else
-      say_dim "→ Start the API server now? — no (set INSTALL_CONSUMER_START_SERVER=1 with INSTALL_CONSUMER_YES to start)"
+      say_dim "→ Start the API server in background now? — no (set INSTALL_CONSUMER_START_SERVER=1 with INSTALL_CONSUMER_YES to start)"
     fi
-  elif prompt_yn "Start the API server now?" "n"; then
+  elif prompt_yn "Start the API server in background now?" "n"; then
     RUN_SERVER_AFTER=true
   fi
 
@@ -1319,7 +1315,7 @@ WST
 
   if [[ "${RUN_SERVER_AFTER}" == true ]]; then
     cd "${INSTALL_PREFIX}"
-    exec node dist/index.js
+    "${starter_bg}"
   fi
 }
 
