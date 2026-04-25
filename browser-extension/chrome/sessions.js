@@ -644,7 +644,7 @@ function removeProcessingHint(detailInner) {
  * @param {string} sessionId
  * @param {string} jobId
  * @param {HTMLElement} detailInner
- * @param {typeof window.InterviewCopilotResultView} rv
+ * @param {typeof window.InterviewCoachResultView} rv
  * @returns {Promise<{ state: "complete" | "failed" | "processing"; hint?: string }>}
  */
 async function loadInterviewPayload(_sessionId, jobId, detailInner, rv) {
@@ -737,7 +737,7 @@ async function loadInterviewPayload(_sessionId, jobId, detailInner, rv) {
  * @param {string} sessionId
  * @param {string} jobId
  * @param {HTMLElement} detailInner
- * @param {typeof window.InterviewCopilotResultView} rv
+ * @param {typeof window.InterviewCoachResultView} rv
  */
 function startPostProcessPollFallback(sessionId, jobId, detailInner, rv) {
   clearPostProcessPoll();
@@ -776,7 +776,7 @@ function startPostProcessPollFallback(sessionId, jobId, detailInner, rv) {
  * @param {string} sessionId
  * @param {string} jobId
  * @param {HTMLElement} detailInner
- * @param {typeof window.InterviewCopilotResultView} rv
+ * @param {typeof window.InterviewCoachResultView} rv
  */
 function wirePostProcessStream(sessionId, jobId, detailInner, rv) {
   clearPostProcessPoll();
@@ -875,7 +875,7 @@ async function loadSessionQuestion(sessionId) {
     if (!q) {
       return;
     }
-    const md = window.InterviewCopilotMarkdown;
+    const md = window.InterviewCoachMarkdown;
     if (md && typeof md.appendMarkdownToElement === "function") {
       md.appendMarkdownToElement(bodyEl, q);
     } else {
@@ -1588,7 +1588,7 @@ async function selectSession(
     return;
   }
 
-  const rv = window.InterviewCopilotResultView;
+  const rv = window.InterviewCoachResultView;
   if (!rv) {
     clearFeedbackLayoutMounts();
     detailPanel.replaceChildren();

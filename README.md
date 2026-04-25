@@ -65,7 +65,7 @@ Support may vary by page layout and editor implementation. Contributions for add
 Run the installer:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCoach/main/install.sh)"
 ```
 
 The installer downloads the latest release, installs the server, and prompts for the AI provider configuration it needs.
@@ -84,7 +84,7 @@ Install [Node.js 20+](https://nodejs.org/), FFmpeg, Python 3.12, and `tar` if ne
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-You can also download [`install.ps1`](https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.ps1) directly and run it from PowerShell.
+You can also download [`install.ps1`](https://raw.githubusercontent.com/pramod-123/AiInterviewCoach/main/install.ps1) directly and run it from PowerShell.
 
 ### Developer Setup
 

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # Copy consumer install data (SQLite + live-sessions + uploads) into this repo's server/data
-# so dev API/extension see the same sessions as ~/.local/share/ai-interview-copilot (or $AI_INTERVIEW_COPILOT_HOME).
+# so dev API/extension see the same sessions as ~/.local/share/ai-interview-coach (or $AI_INTERVIEW_COACH_HOME).
 #
 # Prereq: stop the dev server (and any tool holding server/data/app.db open).
 #
 # Usage:
 #   ./scripts/sync-installed-data-to-workspace.sh
-#   AI_INTERVIEW_COPILOT_HOME=/path/to/prefix ./scripts/sync-installed-data-to-workspace.sh
+#   AI_INTERVIEW_COACH_HOME=/path/to/prefix ./scripts/sync-installed-data-to-workspace.sh
 
 set -euo pipefail
 
 SERVER_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${AI_INTERVIEW_COPILOT_HOME:-${HOME}/.local/share/ai-interview-copilot}/data"
+SRC="${AI_INTERVIEW_COACH_HOME:-${HOME}/.local/share/ai-interview-coach}/data"
 DEST="${SERVER_ROOT}/data"
 
 if [[ ! -d "$SRC" ]]; then
   echo "sync-installed-data: missing source directory: $SRC" >&2
-  echo "Set AI_INTERVIEW_COPILOT_HOME to your install prefix if it is not the default." >&2
+  echo "Set AI_INTERVIEW_COACH_HOME to your install prefix if it is not the default." >&2
   exit 1
 fi
 

@@ -312,7 +312,7 @@ function log(line) {
       logScrollEl.scrollTop = logScrollEl.scrollHeight;
     }
   } else {
-    console.warn("[InterviewCopilot]", timeStr, line);
+    console.warn("[InterviewCoach]", timeStr, line);
   }
 }
 

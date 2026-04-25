@@ -1,4 +1,4 @@
-# When the Git repo root is the monorepo (`AiInterviewCopilot/`), see root `.gitignore`.
+# When the Git repo root is the monorepo (`AiInterviewCoach/`), see root `.gitignore`.
 # This file remains for standalone `server/` checkouts or tooling that only reads this folder.
 
 node_modules/

@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { closeAppDatabase, openAppDatabase } from "./db.js";
-import { InterviewCopilotServer } from "./InterviewCopilotServer.js";
+import { InterviewCoachServer } from "./InterviewCoachServer.js";
 import { AppPaths } from "./infrastructure/AppPaths.js";
 import { getMergedAppEnv } from "./infrastructure/appRuntimeConfig.js";
 
@@ -9,7 +9,7 @@ const bootEnv = getMergedAppEnv(bootPaths);
 const port = Number(bootEnv.PORT?.trim() || "3001");
 const host = bootEnv.HOST?.trim() || "127.0.0.1";
 
-const server = new InterviewCopilotServer();
+const server = new InterviewCoachServer();
 
 process.on("uncaughtException", (err, origin) => {
   try {

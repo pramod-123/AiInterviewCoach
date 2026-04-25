@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
   Consumer installer (Windows): release tarball win-x64, Prisma, Whisper venv, Chrome extension.
-  Default prefix: $env:USERPROFILE\.local\share\ai-interview-copilot
+  Default prefix: $env:USERPROFILE\.local\share\ai-interview-coach
 
   Run from repo clone:
     powershell -ExecutionPolicy Bypass -File .\install.ps1
@@ -9,7 +9,7 @@
   Or download raw from GitHub, then:
     powershell -ExecutionPolicy Bypass -File .\install.ps1
 
-  Env: AI_INTERVIEW_COPILOT_REPO, RELEASE_TAG, INSTALL_PREFIX, INSTALL_CONSUMER_YES=1,
+  Env: AI_INTERVIEW_COACH_REPO, RELEASE_TAG, INSTALL_PREFIX, INSTALL_CONSUMER_YES=1,
        INSTALL_CONSUMER_START_SERVER=1, LIVE_REALTIME_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY,
        ANTHROPIC_API_KEY, LLM_PROVIDER, NODE_MIN_MAJOR (default 20)
 #>
@@ -17,12 +17,12 @@
 $ErrorActionPreference = 'Stop'
 
 $NODE_MIN_MAJOR = if ($env:NODE_MIN_MAJOR) { [int]$env:NODE_MIN_MAJOR } else { 20 }
-$REPO = if ($env:AI_INTERVIEW_COPILOT_REPO) { $env:AI_INTERVIEW_COPILOT_REPO } else { 'pramod-123/AiInterviewCopilot' }
+$REPO = if ($env:AI_INTERVIEW_COACH_REPO) { $env:AI_INTERVIEW_COACH_REPO } else { 'pramod-123/AiInterviewCoach' }
 $RELEASE_TAG = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { 'latest' }
-$defaultPrefix = Join-Path $env:USERPROFILE '.local\share\ai-interview-copilot'
+$defaultPrefix = Join-Path $env:USERPROFILE '.local\share\ai-interview-coach'
 $INSTALL_PREFIX = if ($env:INSTALL_PREFIX) { $env:INSTALL_PREFIX } else { $defaultPrefix }
 $AUTO_YES = $env:INSTALL_CONSUMER_YES -eq '1'
-$EXTENSION_ASSET_NAME = 'ai-interview-copilot-chrome-extension.zip'
+$EXTENSION_ASSET_NAME = 'ai-interview-coach-chrome-extension.zip'
 
 function Write-Info($m) { Write-Host $m }
 function Write-Ok($m) { Write-Host $m -ForegroundColor Green }
@@ -179,7 +179,7 @@ if (-not (Test-Python3Ok)) {
 }
 
 $release = Get-ReleaseJson $REPO $RELEASE_TAG
-$serverAsset = 'ai-interview-copilot-server-win-x64.tar.gz'
+$serverAsset = 'ai-interview-coach-server-win-x64.tar.gz'
 $url = Get-AssetUrl $release $serverAsset
 if (-not $url) {
   Write-Error "Asset not found: $serverAsset. Use a release that includes the Windows server build."

@@ -1,5 +1,5 @@
 {
-  "name": "ai-interview-copilot-server",
+  "name": "ai-interview-coach-server",
   "private": true,
   "type": "module",
   "engines": {

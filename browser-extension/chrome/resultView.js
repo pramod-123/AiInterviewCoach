@@ -1,6 +1,6 @@
 /**
  * Shared DOM rendering for GET /api/interviews/:id responses (extension pages).
- * Assigns {@link window.InterviewCopilotResultView}.
+ * Assigns {@link window.InterviewCoachResultView}.
  */
 (function () {
   /**
@@ -19,7 +19,7 @@
    * @param {string} text
    */
   function setNodeMarkdownOrText(el, text) {
-    const md = window.InterviewCopilotMarkdown;
+    const md = window.InterviewCoachMarkdown;
     if (md && typeof md.appendMarkdownToElement === "function") {
       md.appendMarkdownToElement(el, text);
     } else {
@@ -33,7 +33,7 @@
    * @param {string} text
    */
   function setNodeInlineMarkdownOrText(el, text) {
-    const md = window.InterviewCopilotMarkdown;
+    const md = window.InterviewCoachMarkdown;
     if (md && typeof md.appendInlineMarkdownToElement === "function") {
       md.appendInlineMarkdownToElement(el, text);
     } else {
@@ -126,7 +126,7 @@
         codeEl.textContent = quote;
         preEl.appendChild(codeEl);
         quoteSpan.appendChild(preEl);
-        const md = window.InterviewCopilotMarkdown;
+        const md = window.InterviewCoachMarkdown;
         if (md && typeof md.highlightFencesIn === "function") {
           md.highlightFencesIn(quoteSpan);
         }
@@ -1127,7 +1127,7 @@
     details.appendChild(pre);
     root.appendChild(details);
 
-    const mdSweep = window.InterviewCopilotMarkdown;
+    const mdSweep = window.InterviewCoachMarkdown;
     if (mdSweep && typeof mdSweep.highlightFencesIn === "function") {
       mdSweep.highlightFencesIn(root);
       if (missedMount && missedMount.childNodes.length > 0) {
@@ -1152,7 +1152,7 @@
     root.appendChild(p);
   }
 
-  window.InterviewCopilotResultView = {
+  window.InterviewCoachResultView = {
     renderInterviewGetResponse,
     renderStatusMessage,
   };

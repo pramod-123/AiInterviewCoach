@@ -4,12 +4,12 @@
 # (Node 20+, ffmpeg/ffprobe, Python 3, jq, unzip), openai-whisper CLI venv for local STT (required), Prisma.
 #
 # One-liner (public GitHub API):
-#   curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCoach/main/install.sh | bash
 # Windows (PowerShell 5.1+): download install.ps1 from the repo raw URL, then:
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1
 # Git Bash on Windows can run this script too (winget deps, win-x64 tarball).
 # Same install, stdin stays your terminal (y/n prompts for zsh snippet, extension download, etc.):
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCopilot/main/install.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/pramod-123/AiInterviewCoach/main/install.sh)"
 # Fully unattended (CI / no TTY): auto-yes; optional API keys only from env when INSTALL_CONSUMER_YES=1.
 #
 # From a clone (stdin is a TTY): y/n as usual unless INSTALL_CONSUMER_YES=1. API keys are not prompted — use Server config in Chrome after install.
@@ -18,9 +18,9 @@
 # Developers from git should use ./install-dev.sh (npm in server/, dev server).
 #
 # Environment (optional overrides):
-#   AI_INTERVIEW_COPILOT_REPO   default pramod-123/AiInterviewCopilot if unset
+#   AI_INTERVIEW_COACH_REPO   default pramod-123/AiInterviewCoach if unset
 #   RELEASE_TAG                 default latest
-#   INSTALL_PREFIX              default ~/.local/share/ai-interview-copilot
+#   INSTALL_PREFIX              default ~/.local/share/ai-interview-coach
 #   INSTALL_CONSUMER_YES        if 1: all y/n yes; secrets only from env (no prompts)
 #   INSTALL_INTERACTIVE         if 1: prompt for repo, tag, install path (defaults still shown)
 #   INSTALL_CONSUMER_START_SERVER  if 1 with INSTALL_CONSUMER_YES, start API after install
@@ -35,12 +35,12 @@ set -euo pipefail
 VERSION_WIRED="0.2.0-installer"
 
 # Idempotency marker for ~/.zshrc snippet (see maybe_append_zsh_launcher_snippet).
-ZSH_LAUNCHER_MARKER='# Ai Interview Copilot launcher (install.sh)'
+ZSH_LAUNCHER_MARKER='# InterviewCoach launcher (install.sh)'
 
-# Upstream releases (override with AI_INTERVIEW_COPILOT_REPO=owner/name for forks).
-REPO="${AI_INTERVIEW_COPILOT_REPO:-pramod-123/AiInterviewCopilot}"
+# Upstream releases (override with AI_INTERVIEW_COACH_REPO=owner/name for forks).
+REPO="${AI_INTERVIEW_COACH_REPO:-pramod-123/AiInterviewCoach}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
-INSTALL_PREFIX="${INSTALL_PREFIX:-"${HOME}/.local/share/ai-interview-copilot"}"
+INSTALL_PREFIX="${INSTALL_PREFIX:-"${HOME}/.local/share/ai-interview-coach"}"
 RUN_SERVER_AFTER=false
 # curl … | bash: stdin is the script, so it must not be used for prompts (would consume the script).
 # If there is no usable controlling terminal (typical CI), default to fully non-interactive: auto-yes
@@ -53,7 +53,7 @@ fi
 AUTO_YES="${INSTALL_CONSUMER_YES:-}"
 
 SERVER_ASSET_BASENAME=""
-EXTENSION_ASSET_NAME="ai-interview-copilot-chrome-extension.zip"
+EXTENSION_ASSET_NAME="ai-interview-coach-chrome-extension.zip"
 
 # ---------------------------------------------------------------------------
 # UI — terminal theme (cyan / steel; respects NO_COLOR)
@@ -181,7 +181,7 @@ install_welcome() {
   install_try_logo_png || true
   say ""
   printf '%b╔══════════════════════════════════════════════════════════════╗%b\n' "${C_ACCENT_B}" "${C_RST}"
-  printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_RST}${C_BOLD}" "Ai Interview Copilot" "${C_ACCENT_B}" "${C_RST}"
+  printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_RST}${C_BOLD}" "InterviewCoach" "${C_ACCENT_B}" "${C_RST}"
   printf '%b║%b  %-58s%b║%b\n' "${C_ACCENT_B}" "${C_DIM}" "Installer · ${VERSION_WIRED}" "${C_ACCENT_B}" "${C_RST}"
   printf '%b╚══════════════════════════════════════════════════════════════╝%b\n' "${C_ACCENT_B}" "${C_RST}"
   say ""
@@ -258,21 +258,21 @@ maybe_append_zsh_launcher_snippet() {
   fi
   {
     printf '\n%s\n' "${ZSH_LAUNCHER_MARKER}"
-    printf 'export AI_INTERVIEW_COPILOT_HOME=%q\n' "${prefix}"
-    printf 'export AI_INTERVIEW_COPILOT_REPO=%q\n' "${repo}"
+    printf 'export AI_INTERVIEW_COACH_HOME=%q\n' "${prefix}"
+    printf 'export AI_INTERVIEW_COACH_REPO=%q\n' "${repo}"
     cat <<'EOS'
 aicopilot-server() {
-  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  local root="${AI_INTERVIEW_COACH_HOME}"
   if [[ ! -x "${root}/start-server.sh" ]]; then
-    echo "aicopilot-server: missing ${root}/start-server.sh (set AI_INTERVIEW_COPILOT_HOME?)" >&2
+    echo "aicopilot-server: missing ${root}/start-server.sh (set AI_INTERVIEW_COACH_HOME?)" >&2
     return 1
   fi
   (cd "$root" && exec ./start-server.sh)
 }
 
 aicopilot-server-restart() {
-  local root="${AI_INTERVIEW_COPILOT_HOME}"
-  local port="${AI_INTERVIEW_COPILOT_PORT:-}"
+  local root="${AI_INTERVIEW_COACH_HOME}"
+  local port="${AI_INTERVIEW_COACH_PORT:-}"
   if [[ -z "$port" && -f "${root}/.app-runtime-config.json" ]] && command -v jq >/dev/null 2>&1; then
     port="$(jq -r '(.listenPort // "")|tostring' "${root}/.app-runtime-config.json" 2>/dev/null | tr -d '[:space:]')"
   fi
@@ -295,7 +295,7 @@ aicopilot-server-restart() {
 alias aicopilot='aicopilot-server-restart'
 
 aicopilot-server-bg() {
-  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  local root="${AI_INTERVIEW_COACH_HOME}"
   if [[ ! -x "${root}/start-server-background.sh" ]]; then
     echo "aicopilot-server-bg: missing ${root}/start-server-background.sh" >&2
     return 1
@@ -306,7 +306,7 @@ aicopilot-server-bg() {
 alias aicopilot-bg='aicopilot-server-bg'
 
 aicopilot-server-stop() {
-  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  local root="${AI_INTERVIEW_COACH_HOME}"
   if [[ ! -x "${root}/stop-server.sh" ]]; then
     echo "aicopilot-server-stop: missing ${root}/stop-server.sh" >&2
     return 1
@@ -317,7 +317,7 @@ aicopilot-server-stop() {
 alias aicopilot-stop='aicopilot-server-stop'
 
 aicopilot-check-update() {
-  local root="${AI_INTERVIEW_COPILOT_HOME}"
+  local root="${AI_INTERVIEW_COACH_HOME}"
   if [[ ! -x "${root}/check-update.sh" ]]; then
     echo "aicopilot-check-update: missing ${root}/check-update.sh" >&2
     return 1
@@ -933,7 +933,7 @@ main() {
   tick_done "Host dependencies satisfied (Node, ffmpeg/ffprobe, …)"
   bump_install_progress "Host ready"
 
-  SERVER_ASSET_BASENAME="ai-interview-copilot-server-$(detect_asset_suffix).tar.gz"
+  SERVER_ASSET_BASENAME="ai-interview-coach-server-$(detect_asset_suffix).tar.gz"
   TMP_JSON="$(mktemp)"
   TMP_TGZ="$(mktemp)"
   TMP_EXT=""
@@ -1179,12 +1179,12 @@ EOS
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_FILE="${ROOT}/.install-repo"
-REPO="${AI_INTERVIEW_COPILOT_REPO:-}"
+REPO="${AI_INTERVIEW_COACH_REPO:-}"
 if [[ -z "${REPO}" && -f "${REPO_FILE}" ]]; then
   REPO="$(tr -d '[:space:]' <"${REPO_FILE}" || true)"
 fi
 if [[ -z "${REPO}" || "${REPO}" != */* ]]; then
-  printf 'check-update: set AI_INTERVIEW_COPILOT_REPO=owner/name or write %s\n' "${REPO_FILE}" >&2
+  printf 'check-update: set AI_INTERVIEW_COACH_REPO=owner/name or write %s\n' "${REPO_FILE}" >&2
   exit 1
 fi
 if [[ ! -f "${ROOT}/package.json" ]]; then

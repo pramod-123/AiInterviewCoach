@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download a pre-built Ai Interview Copilot server tarball from GitHub Releases,
+# Download a pre-built InterviewCoach server tarball from GitHub Releases,
 # install system prerequisites (ffmpeg, ffprobe), apply Prisma schema, and optionally start the API.
 #
 # Requires: Node.js 20+, curl, tar, gzip. Python 3 is used to parse the GitHub API (no jq).
@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-REPO="${AI_INTERVIEW_COPILOT_REPO:-}"
+REPO="${AI_INTERVIEW_COACH_REPO:-}"
 VERSION="latest"
 PREFIX=""
 WITH_BREW=false
@@ -16,11 +16,11 @@ RUN_SERVER=true
 
 usage() {
   cat <<'EOF'
-Usage: AI_INTERVIEW_COPILOT_REPO=owner/name ./scripts/install-from-github-release.sh [options]
+Usage: AI_INTERVIEW_COACH_REPO=owner/name ./scripts/install-from-github-release.sh [options]
 
-  --repo OWNER/NAME     GitHub repository (default: env AI_INTERVIEW_COPILOT_REPO)
+  --repo OWNER/NAME     GitHub repository (default: env AI_INTERVIEW_COACH_REPO)
   --version TAG         Release tag, e.g. v1.0.0 (default: latest)
-  --prefix DIR          Install directory (default: $HOME/.local/share/ai-interview-copilot-server)
+  --prefix DIR          Install directory (default: $HOME/.local/share/ai-interview-coach-server)
   --brew, --with-brew   macOS only: brew install ffmpeg
   --no-run              Install and db push only; do not start the server
   -h, --help            Show this help
@@ -49,13 +49,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${REPO}" ]]; then
-  echo "Set --repo OWNER/NAME or AI_INTERVIEW_COPILOT_REPO." >&2
+  echo "Set --repo OWNER/NAME or AI_INTERVIEW_COACH_REPO." >&2
   usage >&2
   exit 1
 fi
 
 if [[ -z "${PREFIX}" ]]; then
-  PREFIX="${HOME}/.local/share/ai-interview-copilot-server"
+  PREFIX="${HOME}/.local/share/ai-interview-coach-server"
 fi
 
 detect_asset_suffix() {
@@ -87,7 +87,7 @@ detect_asset_suffix() {
 }
 
 ASSET_SUFFIX="$(detect_asset_suffix)"
-ASSET_NAME="ai-interview-copilot-server-${ASSET_SUFFIX}.tar.gz"
+ASSET_NAME="ai-interview-coach-server-${ASSET_SUFFIX}.tar.gz"
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2

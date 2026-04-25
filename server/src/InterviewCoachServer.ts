@@ -27,7 +27,7 @@ import { LiveSessionPostProcessWebSocketPlugin } from "./http/LiveSessionPostPro
 /**
  * Composes Fastify plugins and route controllers for the local interview API.
  */
-export class InterviewCopilotServer {
+export class InterviewCoachServer {
   private readonly app: FastifyInstance;
   private readonly paths: AppPaths;
   private readonly speechToTextFactory: SpeechToTextServiceFactory;

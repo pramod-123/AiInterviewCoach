@@ -32,13 +32,13 @@ jobs:
       - name: Pack Chrome extension (MV3)
         run: |
           # defaults.run.working-directory is server/; extension sources live at repo root.
-          (cd "${GITHUB_WORKSPACE}/browser-extension/chrome" && zip -r "${GITHUB_WORKSPACE}/ai-interview-copilot-chrome-extension.zip" .)
-          ls -la "${GITHUB_WORKSPACE}/ai-interview-copilot-chrome-extension.zip"
+          (cd "${GITHUB_WORKSPACE}/browser-extension/chrome" && zip -r "${GITHUB_WORKSPACE}/ai-interview-coach-chrome-extension.zip" .)
+          ls -la "${GITHUB_WORKSPACE}/ai-interview-coach-chrome-extension.zip"
 
       - uses: actions/upload-artifact@v7
         with:
           name: chrome-extension
-          path: ai-interview-copilot-chrome-extension.zip
+          path: ai-interview-coach-chrome-extension.zip
 
   build-assets:
     strategy:
@@ -80,7 +80,7 @@ jobs:
         run: |
           mkdir -p icons
           cp "${GITHUB_WORKSPACE}/browser-extension/chrome/icons/icon-512.png" icons/icon-512.png
-          ASSET="ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz"
+          ASSET="ai-interview-coach-server-${{ matrix.asset_suffix }}.tar.gz"
           tar czf "../${ASSET}" \
             dist node_modules package.json package-lock.json \
             prisma prisma.config.ts .env.example \
@@ -99,7 +99,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path icons | Out-Null
           Copy-Item "${env:GITHUB_WORKSPACE}/browser-extension/chrome/icons/icon-512.png" -Destination "icons/icon-512.png"
-          $asset = "ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz"
+          $asset = "ai-interview-coach-server-${{ matrix.asset_suffix }}.tar.gz"
           $paths = @(
             "dist", "node_modules", "package.json", "package-lock.json",
             "prisma", "prisma.config.ts", ".env.example",
@@ -114,8 +114,8 @@ jobs:
         with:
           name: server-${{ matrix.asset_suffix }}
           path: |
-            ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz
-            ai-interview-copilot-server-${{ matrix.asset_suffix }}.tar.gz.sha256
+            ai-interview-coach-server-${{ matrix.asset_suffix }}.tar.gz
+            ai-interview-coach-server-${{ matrix.asset_suffix }}.tar.gz.sha256
 
   publish-release:
     needs:

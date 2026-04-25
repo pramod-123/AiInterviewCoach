@@ -51,7 +51,7 @@
     if (!P || !root || !resolved) {
       if (typeof console !== "undefined" && console.warn && root && !resolved) {
         console.warn(
-          "[InterviewCopilotMarkdown] Prism: no java/javascript/clike grammar — code blocks stay plain text.",
+          "[InterviewCoachMarkdown] Prism: no java/javascript/clike grammar — code blocks stay plain text.",
         );
       }
       return;
@@ -69,7 +69,7 @@
         codeEl.innerHTML = P.highlight(source, resolved.grammar, resolved.langId);
       } catch (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("[InterviewCopilotMarkdown] Prism.highlight failed", err);
+          console.warn("[InterviewCoachMarkdown] Prism.highlight failed", err);
         }
       }
     });
@@ -112,7 +112,7 @@
         codeEl.innerHTML = P.highlight(source, resolved.grammar, resolved.langId);
       } catch (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("[InterviewCopilotMarkdown] Prism.highlight (inline) failed", err);
+          console.warn("[InterviewCoachMarkdown] Prism.highlight (inline) failed", err);
         }
       }
     });
@@ -290,7 +290,7 @@
     highlightInlineCodeInRoot(el);
   }
 
-  window.InterviewCopilotMarkdown = {
+  window.InterviewCoachMarkdown = {
     renderMarkdownToHtml,
     appendMarkdownToElement,
     appendInlineMarkdownToElement,
