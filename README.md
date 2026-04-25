@@ -1,8 +1,26 @@
+<div align="center">
+
 # InterviewCoach
 
-InterviewCoach is an open-source interview practice tool for live coding sessions. It records your practice flow, captures your screen and microphone, generates a transcript, and gives you structured feedback so you can improve before the real interview.
+### Practice live coding interviews with recording, transcription, and AI feedback.
 
-It is designed for developers who want a self-hosted way to review mock interviews, coding practice sessions, and problem-solving walkthroughs.
+[![License: MIT](https://img.shields.io/badge/License-MIT-9046FF.svg?style=for-the-badge)](./LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-9046FF.svg?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-9046FF.svg?style=for-the-badge&logo=googlechrome&logoColor=white)](./browser-extension/chrome/)
+[![Local First](https://img.shields.io/badge/Local--first-Self--hosted-9046FF.svg?style=for-the-badge)](#installation)
+
+An open-source interview practice tool that helps you run realistic mock coding interviews from **LeetCode**, **HackerRank**, **Codeforces**, **AtCoder**, **CodeChef**, and **TopCoder**. InterviewCoach records your browser tab, microphone, and code timeline, then generates a transcript and structured feedback so you can review your performance before the real interview.
+
+[Quick Start](#installation) · [Features](#what-it-does) · [Screenshots](#screenshots) · [How It Works](#how-it-works) · [Configuration](#configuration) · [Documentation](#documentation)
+
+---
+
+</div>
+
+<div align="center">
+  <img src="demo/interview-analysis.gif" alt="InterviewCoach session review" width="700">
+  <p><em>Review a mock coding interview with recording, transcript, code timeline, and AI feedback.</em></p>
+</div>
 
 ## What It Does
 
@@ -38,12 +56,21 @@ For a higher-quality walkthrough, open [`demo/interview-analysis.mp4`](demo/inte
 
 ## How It Works
 
-1. Install the local server.
-2. Load the Chrome extension.
-3. Open a supported coding problem.
-4. Start the interview session from the extension.
-5. Solve the problem while the extension records the tab, microphone, and editor activity.
-6. End the session and review the generated transcript, video, and feedback.
+```mermaid
+flowchart LR
+  site[Supported coding site] --> extension[Chrome extension]
+  extension --> capture[Tab, mic, and code capture]
+  capture --> server[Local backend server]
+  server --> processing[Transcript and feedback processing]
+  processing --> review[Session review UI]
+```
+
+1. Install the local server and load the Chrome extension.
+2. Open a supported coding problem.
+3. Start the mock interview session from the extension.
+4. Solve the problem while InterviewCoach records the tab, microphone, and editor activity.
+5. End the session.
+6. Review the generated transcript, video, code timeline, and feedback.
 
 ## Supported Sites
 
