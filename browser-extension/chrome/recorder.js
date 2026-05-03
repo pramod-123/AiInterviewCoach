@@ -43,13 +43,7 @@ let sessionAllowsLiveInterviewer = true;
 /** @type {number | null} */
 let codeIntervalId = null;
 
-/** Polls the practice-site editor and pushes updates over the realtime voice bridge (`editorCode`) while it is up. */
-/** @type {number | null} */
-let voiceInterviewerEditorPollId = null;
-
-const VOICE_INTERVIEWER_EDITOR_POLL_MS = 1500;
-
-/** Last editor text successfully uploaded; `null` means no snapshot yet this recording. */
+/** Last editor text successfully uploaded for recording / transcript alignment; `null` means no snapshot yet this session. */
 let lastUploadedCode = null;
 
 /** `performance.now()` when tab capture succeeded; code snapshot offsets are vs merged video / SRT t≈0. */
@@ -212,30 +206,7 @@ function syncVoiceAiStatus(state, detail) {
   voiceAiStatusEl.textContent = state || "Off";
 }
 
-function stopVoiceInterviewerEditorPoll() {
-  if (voiceInterviewerEditorPollId != null) {
-    window.clearInterval(voiceInterviewerEditorPollId);
-    voiceInterviewerEditorPollId = null;
-  }
-}
-
-function startVoiceInterviewerEditorPoll() {
-  stopVoiceInterviewerEditorPoll();
-  voiceInterviewerEditorPollId = window.setInterval(() => {
-    if (!voiceInterviewerBridgeHandle || typeof voiceInterviewerBridgeHandle.sendEditorSnapshot !== "function") {
-      return;
-    }
-    void getCodeFromLeetCodeTab().then((got) => {
-      if (!got.ok) {
-        return;
-      }
-      voiceInterviewerBridgeHandle.sendEditorSnapshot(got.code);
-    });
-  }, VOICE_INTERVIEWER_EDITOR_POLL_MS);
-}
-
 function stopVoiceInterviewerBridge() {
-  stopVoiceInterviewerEditorPoll();
   if (!voiceInterviewerBridgeHandle) {
     return;
   }
@@ -1848,13 +1819,9 @@ async function init() {
             mediaStream: tabMediaStream,
             log,
             onStatus: (state, detail) => {
-              if (state === "ready" && lastUploadedCode != null && voiceInterviewerBridgeHandle?.sendEditorSnapshot) {
-                voiceInterviewerBridgeHandle.sendEditorSnapshot(lastUploadedCode);
-              }
               syncVoiceAiStatus(state, detail);
             },
           });
-          startVoiceInterviewerEditorPoll();
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           log(`Voice interviewer: ${msg}`);

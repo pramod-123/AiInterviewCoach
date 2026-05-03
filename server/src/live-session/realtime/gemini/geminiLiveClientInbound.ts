@@ -1,11 +1,10 @@
 import type { Session } from "@google/genai";
 import type { LiveRealtimeBridgeLogger } from "../LiveRealtimeBridgeHandler.js";
-import { formatCandidateEditorSnapshotForGeminiLive } from "../geminiLiveEditorFormat.js";
 
 /** Client → server JSON (UTF-8 text frames) for the Gemini Live bridge. */
 export type GeminiLiveClientMessage =
   | { type: "audio"; data: string; mimeType?: string }
-  | { type: "editorCode"; code: string }
+  | { type: "video"; data: string; mimeType?: string }
   | { type: "text"; text: string }
   | { type: "audioStreamEnd"; value?: boolean }
   | { type: "ping" };
@@ -55,23 +54,27 @@ export function applyGeminiLiveClientJson(
         });
       }
       break;
-    case "editorCode":
-      if (typeof parsed.code === "string") {
-        const rawCodeChars = parsed.code.length;
-        const wrapped = formatCandidateEditorSnapshotForGeminiLive(parsed.code);
-        session.sendRealtimeInput({ text: wrapped });
+    case "video":
+      if (typeof parsed.data === "string" && parsed.data.length > 0) {
+        const mimeType = parsed.mimeType?.trim() || "image/jpeg";
+        session.sendRealtimeInput({
+          video: { data: parsed.data, mimeType },
+        });
         recordSend({
           atMs: Date.now(),
-          kind: "editorCode",
-          rawCodeChars,
-          sentTextChars: wrapped.length,
+          kind: "video",
+          videoDataChars: parsed.data.length,
+          mimeType,
         });
       }
       break;
     case "text":
       if (typeof parsed.text === "string" && parsed.text.length > 0) {
         const text = parsed.text;
-        session.sendRealtimeInput({ text });
+        session.sendClientContent({
+          turns: [{ role: "user", parts: [{ text }] }],
+          turnComplete: true,
+        });
         recordSend({
           atMs: Date.now(),
           kind: "text",

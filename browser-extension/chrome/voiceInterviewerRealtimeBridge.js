@@ -1,12 +1,16 @@
 /**
  * WebSocket client for `/api/live-sessions/:id/realtime` — streams mic PCM (16 kHz) to the server
- * and plays model PCM audio. Editor updates use `{ type: "editorCode" }` (server may ignore per config).
+ * and plays model PCM audio. Optional tab video frames use `{ type: "video" }`.
  * Exposes {@link VoiceInterviewerRealtimeBridge.start}.
  * @see server — WebSocket route `/api/live-sessions/:id/realtime`
  */
 (function initVoiceInterviewerRealtimeBridge(global) {
   const TARGET_PCM_RATE = 16000;
   const PING_MS = 25000;
+  /** Screen-sharing test: send tab JPEG frames to Gemini at 1 Hz. */
+  const VIDEO_FRAME_INTERVAL_MS = 1000;
+  const VIDEO_FRAME_MAX_WIDTH = 640;
+  const VIDEO_FRAME_JPEG_QUALITY = 0.7;
 
   /**
    * @param {string} apiBase e.g. http://127.0.0.1:3001
@@ -105,7 +109,7 @@
   }
 
   /**
-   * @typedef {{ stop: () => void; sendEditorSnapshot: (code: string) => void }} VoiceInterviewerRealtimeHandle
+   * @typedef {{ stop: () => void }} VoiceInterviewerRealtimeHandle
    * @typedef {(line: string) => void} LogFn
    * @typedef {(state: string, detail?: string) => void} StatusFn
    */
@@ -156,10 +160,19 @@
     let pingId = null;
     /** @type {ReturnType<typeof setTimeout> | null} */
     let speakingResetId = null;
-    /** Dedupe sends; cleared on upstream reconnect so the model can see the buffer again after re-enable. */
-    let lastEditorPayloadSent = null;
     /** After `turnComplete` / `generationComplete`, clear "speaking" once the pull queue has drained. */
     let modelTurnAudioEnded = false;
+    /** Screen-sharing test: 1 Hz JPEG frames from the tab MediaStream. */
+    /** @type {ReturnType<typeof setInterval> | null} */
+    let videoFrameIntervalId = null;
+    /** @type {HTMLVideoElement | null} */
+    let videoFrameSource = null;
+    /** @type {HTMLCanvasElement | null} */
+    let videoFrameCanvas = null;
+    /** @type {CanvasRenderingContext2D | null} */
+    let videoFrameCtx = null;
+    let videoFrameInFlight = false;
+    let videoCaptureStarted = false;
 
     /**
      * @param {Float32Array} dst
@@ -199,6 +212,114 @@
           speakingResetId = null;
         }, 400);
       }
+    }
+
+    /**
+     * Screen-sharing test: capture a JPEG frame from the tab video and forward over the WS.
+     * No-ops if the WebSocket is not open or the source video is not yet producing frames.
+     */
+    function captureAndSendVideoFrame() {
+      if (videoFrameInFlight) {
+        return;
+      }
+      if (closed || !ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (!videoFrameSource || !videoFrameCanvas || !videoFrameCtx) {
+        return;
+      }
+      const vw = videoFrameSource.videoWidth;
+      const vh = videoFrameSource.videoHeight;
+      if (!vw || !vh) {
+        return;
+      }
+      const scale = vw > VIDEO_FRAME_MAX_WIDTH ? VIDEO_FRAME_MAX_WIDTH / vw : 1;
+      const w = Math.max(1, Math.floor(vw * scale));
+      const h = Math.max(1, Math.floor(vh * scale));
+      if (videoFrameCanvas.width !== w) {
+        videoFrameCanvas.width = w;
+      }
+      if (videoFrameCanvas.height !== h) {
+        videoFrameCanvas.height = h;
+      }
+      try {
+        videoFrameCtx.drawImage(videoFrameSource, 0, 0, w, h);
+      } catch {
+        return;
+      }
+      videoFrameInFlight = true;
+      videoFrameCanvas.toBlob(
+        async (blob) => {
+          videoFrameInFlight = false;
+          if (!blob || closed || !ws || ws.readyState !== WebSocket.OPEN) {
+            return;
+          }
+          try {
+            const buf = await blob.arrayBuffer();
+            const b64 = arrayBufferToBase64(buf);
+            ws.send(JSON.stringify({ type: "video", data: b64, mimeType: "image/jpeg" }));
+          } catch {
+            /* ignore */
+          }
+        },
+        "image/jpeg",
+        VIDEO_FRAME_JPEG_QUALITY,
+      );
+    }
+
+    /**
+     * Screen-sharing test: start 1 Hz frame capture from the first video track on `mediaStream`.
+     */
+    function setupVideoFrameCapture() {
+      if (videoCaptureStarted) {
+        return;
+      }
+      const videoTracks = mediaStream.getVideoTracks();
+      if (videoTracks.length === 0) {
+        log("Voice interviewer: no video track on stream — skipping screen frame capture");
+        return;
+      }
+      try {
+        const video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = new MediaStream([videoTracks[0]]);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          return;
+        }
+        videoFrameSource = video;
+        videoFrameCanvas = canvas;
+        videoFrameCtx = ctx;
+        videoCaptureStarted = true;
+        void video.play().catch(() => {});
+        videoFrameIntervalId = setInterval(captureAndSendVideoFrame, VIDEO_FRAME_INTERVAL_MS);
+        log("Voice interviewer: screen frame capture on (1 fps)");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        log(`Voice interviewer: video frame capture setup failed (${msg})`);
+      }
+    }
+
+    function teardownVideoFrameCapture() {
+      if (videoFrameIntervalId != null) {
+        clearInterval(videoFrameIntervalId);
+        videoFrameIntervalId = null;
+      }
+      if (videoFrameSource) {
+        try {
+          videoFrameSource.pause();
+          videoFrameSource.srcObject = null;
+        } catch {
+          /* ignore */
+        }
+        videoFrameSource = null;
+      }
+      videoFrameCanvas = null;
+      videoFrameCtx = null;
+      videoFrameInFlight = false;
+      videoCaptureStarted = false;
     }
 
     function cleanupAudioGraph() {
@@ -311,6 +432,7 @@
         }
       }
       ws = null;
+      teardownVideoFrameCapture();
       cleanupAudioGraph();
       cleanupPlayback(); /* closes shared audioCtx */
     }
@@ -351,29 +473,7 @@
       const msg = e instanceof Error ? e.message : String(e);
       log(`Voice interviewer: WebSocket failed (${msg})`);
       onStatus("error", msg);
-      return { stop: () => {}, sendEditorSnapshot: () => {} };
-    }
-
-    /**
-     * Push full editor buffer to the server (`editorCode`). Skips if unchanged since last send.
-     * @param {string} code
-     */
-    function sendEditorSnapshot(code) {
-      if (typeof code !== "string") {
-        return;
-      }
-      if (code === lastEditorPayloadSent) {
-        return;
-      }
-      if (closed || !ws || ws.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      try {
-        ws.send(JSON.stringify({ type: "editorCode", code }));
-        lastEditorPayloadSent = code;
-      } catch {
-        /* ignore */
-      }
+      return { stop: () => {} };
     }
 
     ws.onopen = async () => {
@@ -441,6 +541,7 @@
             /* ignore */
           }
         }, PING_MS);
+
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         log(`Voice interviewer: audio setup failed (${msg})`);
@@ -477,7 +578,6 @@
           );
         } else if (t === "reconnecting") {
           stopModelPlaybackImmediate();
-          lastEditorPayloadSent = null;
           const ms = typeof p.delayMs === "number" ? p.delayMs : 0;
           const uc = p.upstreamCode != null ? String(p.upstreamCode) : "";
           const ur = typeof p.upstreamReason === "string" && p.upstreamReason.trim() ? ` (${p.upstreamReason.trim()})` : "";
@@ -488,9 +588,11 @@
         } else if (t === "interrupted" && p.value === true) {
           stopModelPlaybackImmediate();
         } else if (t === "modelAudio" && typeof p.data === "string" && audioCtx) {
+          setupVideoFrameCapture();
           setSpeakingUi(true);
           appendModelPcmChunk(p.data, typeof p.mimeType === "string" ? p.mimeType : "");
         } else if (t === "modelText" && typeof p.text === "string" && p.text.trim()) {
+          setupVideoFrameCapture();
           log(`Interviewer: ${p.text.trim().slice(0, 200)}${p.text.length > 200 ? "…" : ""}`);
         } else if (t === "modelThought" && typeof p.text === "string" && p.text.trim()) {
           const s = p.text.trim();
@@ -521,7 +623,7 @@
       finalizeSocketClose(ev);
     };
 
-    return { stop: finalizeUserStop, sendEditorSnapshot };
+    return { stop: finalizeUserStop };
   }
 
   global.VoiceInterviewerRealtimeBridge = { start };

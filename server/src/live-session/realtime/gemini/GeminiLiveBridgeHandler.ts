@@ -18,7 +18,6 @@ import { LiveRealtimeModelOutputBatch, type LiveRealtimeModelOutputPayload } fro
 import { geminiLiveMessageToClientPayload } from "./geminiLiveMessageMapper.js";
 import { buildGeminiLiveInterviewerSystemInstruction } from "../../../prompts/buildGeminiLiveInterviewerSystemInstruction.js";
 
-export { formatCandidateEditorSnapshotForGeminiLive } from "../geminiLiveEditorFormat.js";
 export type { GeminiLiveClientMessage } from "./geminiLiveClientInbound.js";
 
 /**
@@ -142,6 +141,11 @@ export class GeminiLiveBridgeHandler extends LiveRealtimeBridgeHandler {
               this.notifyUpstreamError(e);
             },
             onclose: (e) => {
+              const cev = e as { code?: number; reason?: string };
+              // Stale/invalid resumption token often surfaces as 1007; reconnect as a fresh session.
+              if (cev.code === 1007) {
+                liveResumptionHandle = undefined;
+              }
               this.handleGeminiLiveUpstreamClose(e, connectUpstream, endBridge, reconnectState);
             },
           },
@@ -236,6 +240,15 @@ export class GeminiLiveBridgeHandler extends LiveRealtimeBridgeHandler {
       code: ev.code ?? null,
       reason: typeof ev.reason === "string" ? ev.reason : "",
     });
+    this.log.info(
+      {
+        sessionId: this.sessionId,
+        model: this.model,
+        upstreamCode: ev.code ?? null,
+        upstreamReason: typeof ev.reason === "string" ? ev.reason : "",
+      },
+      "gemini live: upstream closed",
+    );
     this.log.debug(
       {
         sessionId: this.sessionId,

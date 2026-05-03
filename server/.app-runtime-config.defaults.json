@@ -1,8 +1,8 @@
 {
   "version": 1,
   "evaluationProvider": "single-agent",
-  "openaiEvalModelOptions": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
-  "anthropicEvalModelOptions": ["claude-sonnet-4-6", "claude-opus-4-7"],
+  "openaiEvalModelOptions": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"],
+  "anthropicEvalModelOptions": ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
   "geminiEvalModelOptions": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
   "openaiRealtimeModelOptions": [
     "gpt-4o-realtime-preview-2024-12-17",
